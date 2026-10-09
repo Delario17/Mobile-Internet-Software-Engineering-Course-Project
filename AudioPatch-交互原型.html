@@ -981,7 +981,7 @@ function renderVersions(){const s=currentSegment();const versions=[{v:'src',dur:
   <div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div></div><div class="bottom">${button(candidate==='src'?'恢复原始录音':'使用此版本','adopt')}
     <div class="row"><button class="btn ghost sm grow" data-go="s14">再录一版</button><button class="btn ghost sm grow" data-go="s16">试听前后文</button></div></div>`;}
 function renderContext(){const s=currentSegment(),i=SEGS.indexOf(s);return `${bar(`第 ${numberOf(s)} 句 · 试听前后文`,contextReturn)}<div class="scroll">
-  ${SEGS.slice(Math.max(0,i-1),i+2).map(t=>`<div class="card"><span class="tag ${t===s?'blue':'grey'}">${t===s?'当前句':t===SEGS[i-1]?'前一句':'后一句'} · ${t===s&&contextReturn==='s15'?(candidate==='src'?'原始录音':candidate)+'（候选，未采用）':t.sel||'原始录音'}</span><p class="tt">${escapeHtml(t.t)}</p></div>`).join('')}
+  ${SEGS.slice(Math.max(0,i-1),i+2).map(t=>`<div class="card"><span class="tag ${t===s?'blue':'grey'}">${t===s?'当前句':t===SEGS[i-1]?'前一句':'后一句'} · ${t===s&&contextReturn==='s15'?(candidate==='src'?'原始录音':candidate)+(candidate===(s.sel||'src')?'（当前使用）':'（候选，未采用）'):t.sel||'原始录音'}</span><p class="tt">${escapeHtml(t.t)}</p></div>`).join('')}
   ${button('连续试听这段','listen')}
   <details class="card"><summary>更多声音设置</summary><label for="pauseRange">句间停顿：<output id="pauseValue">${gapMs}</output> 毫秒</label><input id="pauseRange" type="range" min="0" max="600" value="${gapMs}">
     <label class="checkline"><input type="checkbox" id="volumeMatch" ${matchVolume?'checked':''}>自动匹配音量</label><p class="hint">演示参数，不处理真实声音。正式应用按相同设置预览和导出。</p><details><summary>技术详情</summary><p class="hint">淡入 / 淡出各 10 ms · dspProfile v1.3</p></details></details>
