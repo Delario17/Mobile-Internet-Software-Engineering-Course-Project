@@ -309,9 +309,21 @@ body.view-flow .solo{display:none}
 .kv2:last-child{border-bottom:0}
 .kv2 b{font-weight:600;font-family:var(--mono);font-size:11px;color:var(--ink2)}
 @media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+.user-mode #recStates,.user-mode #expStates,.user-mode .side,.user-mode #annoBtn,.user-mode #viewBtn,.user-mode #here{display:none}
+.user-mode .tool{justify-content:center}
+button:focus-visible,input:focus-visible,summary:focus-visible,select:focus-visible,textarea:focus-visible{outline:3px solid var(--cobalt);outline-offset:2px}
+button:disabled{opacity:.5;cursor:not-allowed}
+#segmentList{display:flex;flex-direction:column;gap:8px}
+.checkline input{width:20px;height:20px;flex:none;accent-color:var(--cobalt)}
+summary{cursor:pointer;min-height:44px;display:flex;align-items:center}
+#pauseRange{width:100%}
+.row{gap:8px}
+.hint,.hint.tiny{font-size:12px}
+@media(max-width:600px){.side{display:none}.tool{flex-wrap:wrap;height:auto;min-height:44px}.canvas{padding:0}.solo{width:100%}.phone{width:100%;height:calc(100dvh - 70px);padding:0;border-radius:0;zoom:1}.scr{border-radius:0}.bottom{padding-bottom:max(12px,env(safe-area-inset-bottom))}.view-gal .canvas{padding:12px}}
 </style>
 </head>
-<body class="anno-on">
+<body class="user-mode">
 
 <svg style="position:absolute;width:0;height:0" aria-hidden="true"><defs>
 <symbol id="i-play" viewBox="0 0 24 24"><path class="f" d="M8 5.2 19 12 8 18.8z"/></symbol>
@@ -343,15 +355,15 @@ body.view-flow .solo{display:none}
   <aside class="side">
     <div class="side-h">
       <h1>Audio<span>Patch</span> · 交互原型</h1>
-      <p>依据：项目一需求规格说明 V1.1<br>19 屏 / 21 条功能需求 / 13 条验收用例</p>
+      <p>依据：项目一需求规格说明 V1.1<br>21 屏 / 21 条功能需求 / 13 条验收用例</p>
     </div>
     <div class="side-list" id="nav"></div>
   </aside>
 
   <div class="main">
     <div class="tool">
-      <span class="fw" id="here">S01 · 项目列表</span>
-      <button class="toggle on" id="annoBtn"><span class="dot"></span>需求追溯标注</button>
+      <button class="toggle" id="modeBtn">展开演示导航</button><span class="fw" id="here">S01 · 项目列表</span>
+      <button class="toggle" id="annoBtn"><span class="dot"></span>需求追溯标注</button>
       <div class="seg-btn" id="viewBtn">
         <button data-view="single" class="on">单屏</button>
         <button data-view="gal">全部屏幕</button>
@@ -364,10 +376,10 @@ body.view-flow .solo{display:none}
           <div class="scr">
             <div class="statusbar">
               <span>09:41</span>
-              <span class="plane"><svg class="ic"><use href="#i-plane"/></svg>飞行模式</span>
-              <span class="r"><span class="mono" style="font-size:10px">端侧</span><span class="batt"><i></i></span></span>
+              <span class="plane"><svg class="ic"><use href="#i-plane"/></svg>离线演示</span>
+              <span class="r"><span class="mono" style="font-size:10px">原型</span><span class="batt"><i></i></span></span>
             </div>
-            <div class="screens" id="screens"></div>
+            <div class="screens" id="screens"></div><div class="hint tiny" style="padding:4px 16px">交互演示 · 无真实音频 · 刷新后重置</div><div id="toast" role="status" aria-live="polite" class="hint" style="padding:4px 16px;background:#fff"></div>
           </div>
         </div>
       </div>
@@ -402,8 +414,8 @@ const SEGS = [
 function takes(seg){ return seg.takes || null }
 function selTake(seg){ return seg.takes ? seg.takes.find(x=>x.v===seg.sel) : null }
 function adoptedDur(seg){ const k = selTake(seg); return k ? k.dur : (seg.b - seg.a) }
-const FILM = (()=>{ let o=0; return SEGS.map(s=>{ const d=adoptedDur(s); const r={id:s.id, from:o, dur:d, rep:!!(s.takes&&s.sel)}; o+=d; return r }) })();
-const FILM_MS = FILM.reduce((a,b)=>a+b.dur,0);
+let FILM = (()=>{ let o=0; return SEGS.map(s=>{ const d=adoptedDur(s); const r={id:s.id, from:o, dur:d, rep:!!(s.takes&&s.sel)}; o+=d; return r }) })();
+let FILM_MS = FILM.reduce((a,b)=>a+b.dur,0);
 
 /* =========================================================
    2. 工具函数
@@ -458,7 +470,7 @@ function tapeTracks(mode){
     x+=f.dur;
   });
   return `<div class="tape">
-    <div class="tape-h"><span class="lock"><svg class="ic"><use href="#i-lock"/></svg>源录音</span><span class="r">只读 · 校验值 9f3c…a41d</span></div>
+    <div class="tape-h"><span class="lock"><svg class="ic"><use href="#i-lock"/></svg>源录音</span><span class="r">原始录音始终保留</span></div>
     <div class="lane" data-lane="src" style="height:26px">${mine}</div>
     <div class="tape-h" style="margin:7px 0 4px"><span>成片时间轴</span><span class="r">${sec2t(SRC)} → ${sec2t(FILM_MS/1000)}</span></div>
     <div class="lane" data-lane="film" style="position:relative">${film}${sp}<div class="ph" style="left:74%"></div></div>
@@ -471,17 +483,17 @@ function segRow(s,i,opt={}){
   const d = s.b-s.a;
   const flag = [];
   if(s.takes&&s.sel) flag.push(`<span class="tag blue"><svg class="ic"><use href="#i-eq"/></svg>已替换 ${s.sel}</span>`);
-  if(s.review==='pending') flag.push(`<span class="tag amber">待审核</span>`);
+  if(s.review==='pending') flag.push(`<span class="tag amber">待确认</span>`);
   else if(s.reviewed) flag.push(`<span class="tag grey"><svg class="ic"><use href="#i-check"/></svg>已人工确认</span>`);
   const conf = s.c==null ? `<span class="c low">置信度不可用</span>` : `<span class="c ${s.c<.85?'low':''}">置信度 ${s.c.toFixed(2)}</span>`;
-  let txt = s.t;
-  (s.words||[]).forEach(w=>{ txt = txt.replace(w, `<span class="w-low">${w}</span>`) });
+  let txt = escapeHtml(s.t);
+  (s.words||[]).forEach(w=>{ txt = txt.replace(escapeHtml(w), `<span class="w-low">${escapeHtml(w)}</span>`) });
   if(s.takes&&s.sel) txt = `<span class="w-rep">${txt}</span>`;
   return `<button class="seg ${opt.sel?'sel':''} ${opt.playing?'playing':''}" data-seg="${s.id}">
     <span class="idx">${String(i+1).padStart(2,'0')}</span>
     <span class="body">
       <span class="txt">${txt}</span>
-      <span class="meta"><span>${ms2t(s.a,1)} → ${ms2t(s.b,1)}</span><span>·</span><span>${(d/1000).toFixed(1)}s</span><span>·</span>${conf}
+      <span class="meta"><span>${ms2t(s.a,1)} → ${ms2t(s.b,1)}</span><span>·</span><span>${(d/1000).toFixed(1)}s</span><span>·</span><span>${s.sel?"补录 "+s.sel:"原始录音"}</span>
       ${s.src==='manual'?'<span>·</span><span>手动句段</span>':''}${flag.join('')}</span>
     </span>
     <span class="prog"></span>
@@ -506,29 +518,18 @@ SCREENS.push(
   <div class="appbar"><div style="width:6px"></div><h2>AudioPatch</h2>
     <button class="ibtn" data-go="s21" aria-label="项目与存储信息"><svg class="ic"><use href="#i-info"/></svg></button></div>
   <div class="scroll">
-    ${anno('P1-FR-001','P1-FR-019','NFR-002')}
+    ${anno('P1-FR-001','P1-FR-019','NFR-002')}<div class="card"><h3>录完一整段，只重录其中一句</h3><p class="hint">录音或导入 → 点选文字 → 重录 → 导出完整成片</p></div>
     <div class="note blue"><svg class="ic"><use href="#i-plane"/></svg><span><b>全部处理在本机完成。</b>录音、识别、分句、重录和导出都不需要网络，音频不会离开这台手机。</span></div>
     <button class="btn primary" data-go="s02"><svg class="ic"><use href="#i-plus"/></svg>新建项目</button>
-    <div class="marker">最近项目<i></i></div>
+    <div class="marker">示例项目<i></i></div>
     <div class="card tight list" style="padding:2px 12px">
       <button class="list-i" data-go="s08"><svg class="ic"><use href="#i-file"/></svg>
         <span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-size:13.5px;font-weight:600">挑战杯 · 作品介绍</span>
         <span class="mono" style="display:block;font-size:10px;color:var(--ink3);margin-top:3px">可编辑 · 11 句段 · 1 处替换 · 01:15.8</span></span>
-        <span class="tag amber">待审核 2</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></button>
-      <button class="list-i" data-go="s15"><svg class="ic"><use href="#i-file"/></svg>
-        <span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-size:13.5px;font-weight:600">社团招新宣传旁白</span>
-        <span class="mono" style="display:block;font-size:10px;color:var(--ink3);margin-top:3px">已导出 昨天 21:04 · 04:12</span></span>
-        <span class="tag grey">已导出</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></button>
-      <button class="list-i" data-go="s13"><svg class="ic"><use href="#i-file"/></svg>
-        <span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-size:13.5px;font-weight:600">微课 · 数据结构第三讲</span>
-        <span class="mono" style="display:block;font-size:10px;color:var(--ink3);margin-top:3px">待人工审核 2 处 · 18:22</span></span>
-        <span class="tag amber">待审核</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></button>
-      <button class="list-i" data-go="s20"><svg class="ic"><use href="#i-warn"/></svg>
-        <span style="flex:1;min-width:0;text-align:left"><span style="display:block;font-size:13.5px;font-weight:600">一段录音</span>
-        <span class="mono" style="display:block;font-size:10px;color:var(--ink3);margin-top:3px">录制被来电打断 · 待恢复 · 02:31</span></span>
-        <span class="tag red">待恢复</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></button>
+        <span class="tag amber">待确认 2</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></button>
+
     </div>
-    <div class="hint tiny">项目保存在应用私有目录。删除项目时会一并删除源录音副本、替换录音、缓存与转写记录。</div>
+    <div class="hint tiny">这是交互原型：使用示例数据，不会录音、识别或生成文件。改动只在本次页面会话保留，刷新后重置。</div>
   </div>`},
 
 {id:'s02',stage:'① 创建',name:'新建项目',html:`
@@ -536,7 +537,7 @@ SCREENS.push(
   <div class="scroll">
     ${anno('P1-FR-001','P1-FR-004','P1-FR-005')}
     <div class="card tight"><div class="card-h"><span class="eyebrow">项目名称</span></div>
-      <input class="input" style="font-family:var(--sans);font-size:14.5px" value="挑战杯 · 作品介绍"></div>
+      <input class="input" style="font-family:var(--sans);font-size:14.5px" id="projectName" aria-label="项目名称" placeholder="项目名称（可稍后修改）"></div>
     <div class="marker">先选一种录音方式<i></i></div>
     <button class="entry" data-go="s03">
       <span class="box"><svg class="ic"><use href="#i-mic"/></svg></span>
@@ -546,21 +547,11 @@ SCREENS.push(
       <span class="box ink"><svg class="ic"><use href="#i-file"/></svg></span>
       <span style="flex:1;min-width:0"><h4>导入音频</h4><p>从手机录音或文件里选一条。支持 WAV / M4A / MP3，单条 20 分钟以内。</p></span>
       <svg class="ic next"><use href="#i-next"/></svg></button>
-    <div class="card">
-      <div class="card-h"><span class="eyebrow">准备文字 · 可选</span><span class="tag grey">不填也能用</span></div>
-      <div class="list">
-        <div class="list-i"><svg class="ic"><use href="#i-text"/></svg><span style="flex:1;font-size:13px">完整讲稿</span><span class="hint tiny">未填写</span></div>
-        <div class="list-i"><svg class="ic"><use href="#i-text"/></svg><span style="flex:1;font-size:13px">提纲要点</span><span class="hint tiny">录制时显示为参考</span></div>
-        <div class="list-i" style="flex-direction:column;align-items:stretch;gap:9px">
-          <div class="row"><svg class="ic"><use href="#i-text"/></svg><span style="flex:1;font-size:13px">专业词</span><span class="hint tiny">辅助本机识别</span></div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px">
-            <span class="chip on">AudioPatch</span><span class="chip on">非破坏式替换</span>
-            <span class="chip on">端侧识别</span><span class="chip on">时间对齐</span>
-            <span class="chip"><svg class="ic" style="width:13px"><use href="#i-plus"/></svg>添加</span></div>
-        </div>
-      </div>
-      <div class="note" style="margin-top:10px"><svg class="ic"><use href="#i-info"/></svg><span>提纲与口述不一致时不会中断识别；转写文字始终以实际音频为准。</span></div>
-    </div>
+    <details class="card"><summary>准备文字 · 可选，不填也能用</summary>
+      <label for="scriptInput">完整讲稿</label><textarea class="input" id="scriptInput" rows="3" placeholder="可粘贴讲稿；无需与口述完全一致"></textarea>
+      <label for="outlineInput">提纲要点</label><textarea class="input" id="outlineInput" rows="3" placeholder="录音时显示，帮助你记住要说什么"></textarea>
+      <label for="termsInput">专业词</label><input class="input" id="termsInput" placeholder="用逗号分隔，例如：AudioPatch、鸿蒙">
+      <p class="hint">正式应用使用这些词辅助识别。原型只演示输入与提纲显示。</p></details>
   </div>`},
 
 {id:'s03',stage:'① 创建',name:'完整录制',html:`
@@ -585,7 +576,7 @@ SCREENS.push(
         <span class="mono" style="color:var(--ink3)">05</span> 演示：全程离线
       </div>
     </div>
-    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>结束录制后，这段音频会成为<b>不可修改的源录音</b>，之后所有的补录都叠在它上面，不会覆盖它。</span></div>
+    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>结束录制后，这段音频会成为<b>保留的原始录音</b>，补录只替换你选中的句子，不会覆盖原始录音。</span></div>
   </div>
   <div class="bottom">
     <div class="row" style="gap:10px">
@@ -642,7 +633,7 @@ SCREENS.push(
   <div class="bottom"><button class="btn primary" data-go="s04">重新选择文件</button></div>`},
 
 {id:'s06',stage:'② 识别',name:'端侧识别处理中',html:`
-  <div class="appbar"><h2 style="text-align:center">端侧识别中</h2><span style="width:38px"></span></div>
+  <div class="appbar"><h2 style="text-align:center">正在把录音整理成句子</h2><span style="width:38px"></span></div>
   <div class="scroll">
     ${anno('P1-FR-006','P1-FR-007','NFR-007','NFR-008','P1-AC-011')}
     <div class="card" style="padding:16px 14px 14px">
@@ -653,10 +644,10 @@ SCREENS.push(
         <span class="num" id="pct">62<small>%</small></span>
       </div>
       <div class="steps" style="margin-top:14px">
-        <div class="step done"><span class="k"><svg class="ic" style="width:10px;stroke-width:3"><use href="#i-check"/></svg></span><span class="t">语音活动检测</span><span class="mono" style="font-size:10px;color:var(--ink3)">8.4s</span></div>
-        <div class="step now"><span class="k"></span><span class="t">语音识别与词级时间戳</span><span class="mono" style="font-size:10px">进行中</span></div>
-        <div class="step"><span class="k">3</span><span class="t">时间对齐</span><span class="mono" style="font-size:10px;color:var(--ink3)">待处理</span></div>
-        <div class="step"><span class="k">4</span><span class="t">自动分句</span><span class="mono" style="font-size:10px;color:var(--ink3)">待处理</span></div>
+        <div class="step done"><span class="k"><svg class="ic" style="width:10px;stroke-width:3"><use href="#i-check"/></svg></span><span class="t">找出有人声的部分</span><span class="mono" style="font-size:10px;color:var(--ink3)">8.4s</span></div>
+        <div class="step now"><span class="k"></span><span class="t">生成识别文字</span><span class="mono" style="font-size:10px">进行中</span></div>
+        <div class="step"><span class="k">3</span><span class="t">将文字与声音对应</span><span class="mono" style="font-size:10px;color:var(--ink3)">待处理</span></div>
+        <div class="step"><span class="k">4</span><span class="t">整理为可编辑的句子</span><span class="mono" style="font-size:10px;color:var(--ink3)">待处理</span></div>
       </div>
     </div>
     <div class="card tight">
@@ -687,7 +678,7 @@ SCREENS.push(
       <div class="card-h"><span class="eyebrow">你可以这样做</span></div>
       <div class="list">
         <div class="list-i"><svg class="ic"><use href="#i-speaker"/></svg><span style="flex:1;font-size:13px">播放源录音，确认到底录到了什么</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-        <div class="list-i"><svg class="ic"><use href="#i-eq"/></svg><span style="flex:1;font-size:13px">换一个模型版本，重新识别一次</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
+        <div class="list-i"><svg class="ic"><use href="#i-eq"/></svg><span style="flex:1;font-size:13px">检查录音是否清晰，再重试识别</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
         <div class="list-i"><svg class="ic"><use href="#i-crop"/></svg><span style="flex:1;font-size:13px">在波形上框选一段，自己建立句段</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
       </div>
     </div>
@@ -707,94 +698,19 @@ SCREENS.push(
   <div class="bottom"><button class="btn primary" data-go="s06">重新识别</button></div>`}
 );
 SCREENS.push(
-{id:'s08',stage:'③ 编辑',name:'编辑主页（核心）',html:`
-  <div class="appbar"><button class="ibtn" data-go="s01" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>挑战杯 · 作品介绍</h2>
-    <button class="ibtn" data-go="s13" aria-label="待审核句段"><svg class="ic"><use href="#i-warn"/></svg><span class="nb">2</span></button>
-    <button class="ibtn" data-go="s21" aria-label="项目信息"><svg class="ic"><use href="#i-info"/></svg></button></div>
-  <div class="scroll">
-    ${anno('P1-FR-008','P1-FR-009','P1-FR-010','P1-FR-013','P1-FR-017','NFR-009')}
-    <div class="card tight">
-      <div class="row" style="gap:12px">
-        <button class="playbtn blue" id="mainPlay" aria-label="播放"><svg class="ic" id="mainPlayIcon"><use href="#i-play"/></svg></button>
-        <span style="flex:1;min-width:0">
-          <span class="mono" style="font-size:15px">00:55.9</span><span class="mono hint tiny"> / 01:15.8</span>
-          <span class="bar" style="display:block;margin-top:8px"><i id="mainBar" style="width:74%"></i></span></span>
-        <button class="ibtn" aria-label="变速播放"><span class="mono" style="font-size:11.5px">1.0×</span></button>
-      </div>
-      <div class="hint tiny" style="margin-top:10px">点文字会播放对应声音；播放时文字会同步高亮。两者引用同一份编辑决策。</div>
-    </div>
-    <div class="row" style="gap:8px">
-      <button class="chip on" data-go="s13"><svg class="ic" style="width:13px;color:var(--amber)"><use href="#i-warn"/></svg>2 处待审核</button>
-      <span class="chip" id="filterChip">只看替换过的句段</span>
-      <span class="chip">原文 / 成片对比</span>
-    </div>
-    <div class="marker">识别句段<i></i>共 11 句 · 按时间排序</div>
-    <div style="display:flex;flex-direction:column;gap:8px">
-      ${SEGS.map((s,i)=>segRow(s,i,{playing:s.id==='sg09'})).join('')}
-    </div>
-    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>句段 07 与 10 是琥珀色下划线标记的<b>低置信度</b>结果，需要你确认文字和边界后才能导出。</span></div>
-  </div>
-  <div class="bottom">
-    ${tapeTracks('compact')}
-    <button class="btn primary" data-go="s14"><svg class="ic"><use href="#i-mic"/></svg>重录这一句</button>
-    <div class="row" style="gap:8px">
-      <button class="btn ghost sm grow" data-go="s09">句段操作</button>
-      <button class="btn ghost sm grow" data-go="s17">全文预览</button>
-      <button class="btn ghost sm grow" data-go="s18">导出</button>
-    </div>
-  </div>`},
+{id:'s08',stage:'③ 编辑',name:'编辑主页（核心）',html:renderEditor},
 
-{id:'s09',stage:'③ 编辑',name:'句段操作菜单',html:`
-  <div class="scroll dim-bg" style="gap:8px">
-    ${SEGS.slice(5,9).map((s,i)=>segRow(s,i+5,{playing:s.id==='sg09'})).join('')}
-  </div>
-  <div class="sheet-wrap"><div class="sheet">
-    <div class="grab"></div>
-    <div class="spread" style="margin-bottom:6px"><span class="row"><span class="tag ink mono">09</span><h3 style="margin:0">句段 09</h3></span>
-      <span class="mono hint tiny">00:55.9 → 01:02.3</span></div>
-    <div class="tt" style="font-size:15.5px;color:var(--cobalt-ink);margin-bottom:14px">下面是我们的演示视频。</div>
-    <div class="opt" data-go="s10"><svg class="ic"><use href="#i-text"/></svg><span class="t">修改文字<small>只改显示内容，音频不动</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s11"><svg class="ic"><use href="#i-crop"/></svg><span class="t">调整起止边界<small>当前 00:55.9 → 01:02.3 · 来源：自动</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s11"><svg class="ic"><use href="#i-scissors"/></svg><span class="t">拆分句段<small>在播放头位置切成两句</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s12"><svg class="ic"><use href="#i-merge"/></svg><span class="t">与上一句合并</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s12"><svg class="ic"><use href="#i-merge"/></svg><span class="t">与下一句合并</span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s16"><svg class="ic"><use href="#i-speaker"/></svg><span class="t">试听这一句（带前后文）<small>前句 — 当前版本 — 后句</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s15"><svg class="ic"><use href="#i-eq"/></svg><span class="t">版本管理<small>已录 2 个版本，当前采用 v2</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <div class="opt" data-go="s12"><svg class="ic"><use href="#i-undo"/></svg><span class="t">撤销上一次修改<small>调整了句段 10 的边界</small></span><svg class="ic" style="width:14px"><use href="#i-next"/></svg></div>
-    <button class="btn ghost" style="margin-top:6px" data-go="s08">关闭</button>
-  </div></div>`},
+{id:'s09',stage:'③ 编辑',name:'句段操作菜单',html:renderMore},
 
-{id:'s10',stage:'③ 编辑',name:'修改文字',html:`
-  <div class="appbar"><button class="ibtn" data-go="s09" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>修改文字</h2>
-    <button class="btn sm primary" data-go="s08">保存</button></div>
-  <div class="scroll">
-    ${anno('P1-FR-009','P1-FR-010','P1-AC-013')}
-    <div class="card tight">
-      <div class="spread" style="margin-bottom:9px"><span class="eyebrow mono" style="font-size:10px;color:var(--ink3)">句段 07 · 置信度 0.72</span><span class="tag amber">待审核</span></div>
-      <textarea class="input" rows="3" id="editText">系统会采用非破坏式替换，源录音始终保持不变。</textarea>
-      <div class="hint tiny" style="margin-top:8px">只改文字不影响音频。文字用于定位、审核和导出时的说明。</div>
-    </div>
-    <div class="card tight">
-      <div class="card-h"><span class="eyebrow">项目专业词</span><span class="hint tiny">点一下插入到光标处</span></div>
-      <div style="display:flex;flex-wrap:wrap;gap:6px" id="wordChips">
-        <span class="chip">AudioPatch</span><span class="chip">非破坏式替换</span><span class="chip">端侧识别</span><span class="chip">时间对齐</span>
-      </div>
-    </div>
-    <div class="note amber"><svg class="ic"><use href="#i-warn"/></svg><span>这一句原本已人工确认，<b>改动文字后审核状态会重新变为待审核</b>，需要再确认一次才能导出。</span></div>
-    <div class="card tight">
-      <div class="card-h"><span class="eyebrow">改完可以马上听</span></div>
-      <div class="row" style="gap:11px"><span class="playbtn" style="width:38px;height:38px"><svg class="ic" style="width:18px"><use href="#i-play"/></svg></span>
-        <span style="flex:1">${wave(9,44,26)}</span><span class="mono hint tiny">6.4s</span></div>
-    </div>
-  </div>`},
+{id:'s10',stage:'③ 编辑',name:'修改文字',html:renderText},
 
 {id:'s11',stage:'③ 编辑',name:'边界调整与拆分',html:`
   <div class="appbar"><button class="ibtn" data-go="s08" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>句段 09 · 边界</h2>
-    <button class="btn sm primary" data-go="s08">保存</button></div>
+    <button class="btn sm primary" data-action="demo">保存（仅示意）</button></div>
   <div class="scroll">
     ${anno('P1-FR-009','P1-FR-020','P1-AC-004','P1-AC-006')}
     <div class="card">
-      <div class="card-h"><span class="eyebrow">拖动两端调整范围</span><span class="hint tiny">自动边界误差 ≤ 500 ms</span></div>
+      <div class="card-h"><span class="eyebrow">拖动两端调整范围</span><span class="hint tiny">请试听，确认开头和结尾完整</span></div>
       <div class="wavesel">
         <div style="position:relative;padding:2px 0">${wave(31,72,52,'ghost')}
           <div class="mask" style="left:0;width:8%"></div>
@@ -818,7 +734,7 @@ SCREENS.push(
       <div class="card-h"><span class="eyebrow">拆分</span><span class="hint tiny">拆分点 00:58.6</span></div>
       <button class="btn ghost sm" data-go="s12" style="width:100%"><svg class="ic"><use href="#i-scissors"/></svg>在播放头处拆分</button>
     </div>
-    <div class="note"><svg class="ic"><use href="#i-lock"/></svg><span>调整边界只改变句段引用的源录音范围，<b>不会切开也不会改写源录音</b>。随时可以改回来。</span></div>
+    <div class="note"><svg class="ic"><use href="#i-lock"/></svg><span>调整声音范围<b>不会改写原始录音</b>。已有补录将不再适用，成片恢复原音，需要重新补录和检查。</span></div>
   </div>`},
 
 {id:'s12',stage:'③ 编辑',name:'合并与撤销',html:`
@@ -832,8 +748,8 @@ SCREENS.push(
       <div class="tt" style="font-size:14.5px">我们已经在鸿蒙手机上跑通了全部流程。<span class="mono hint tiny">01:02.3 → 01:09.0</span></div>
       <div class="divide" style="margin:9px 0"></div>
       <div class="spread"><span class="row" style="gap:7px"><span class="tag blue">合并结果</span><span class="mono hint tiny">00:55.9 → 01:09.0 · 13.1s</span></span>
-        <button class="btn sm primary" data-go="s08">确认合并</button></div>
-      <div class="hint tiny" style="margin-top:9px">合并会新增一个句段并保留原句段记录；再拆分后，文字、播放范围和顺序与原来一致。</div>
+        <button class="btn sm primary" data-action="demo">确认合并（仅示意）</button></div>
+      <div class="hint tiny" style="margin-top:9px">合并或拆分会保留历史录音，但不自动沿用已有补录。成片将恢复原音，需要重新检查。</div>
     </div>
     <div class="card">
       <div class="card-h"><span class="eyebrow">最近修改</span><span class="hint tiny">逐步回退</span></div>
@@ -843,40 +759,12 @@ SCREENS.push(
         <div class="list-i"><span class="mono hint tiny">2</span><span style="flex:1;font-size:12.5px">选用了句段 09 的版本 v2</span></div>
         <div class="list-i"><span class="mono hint tiny">1</span><span style="flex:1;font-size:12.5px">录了句段 09 的版本 v1</span></div>
       </div>
-      <button class="btn ghost sm" data-go="s08" style="width:100%;margin-top:10px"><svg class="ic"><use href="#i-undo"/></svg>撤销「调整句段 10 的边界」</button>
+      <button class="btn ghost sm" data-action="demo" style="width:100%;margin-top:10px"><svg class="ic"><use href="#i-undo"/></svg>撤销「调整句段 10 的边界」</button>
     </div>
     <div class="note"><svg class="ic"><use href="#i-lock"/></svg><span>撤销只回退编辑决策。源录音在整个过程里一直没有变，校验值保持 9f3c…a41d。</span></div>
   </div>`},
 
-{id:'s13',stage:'③ 编辑',name:'低置信度人工审核',html:`
-  <div class="appbar"><button class="ibtn" data-go="s08" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>待人工审核</h2>
-    <span class="mono hint tiny" id="revCount">0 / 2 已确认</span></div>
-  <div class="scroll">
-    ${anno('P1-FR-010','P1-AC-013','异常处理：置信度不可用')}
-    <div class="note amber"><svg class="ic"><use href="#i-warn"/></svg><span>下面两句的识别置信度低于审核门槛（或没有置信度数值）。确认文字与边界之前，<b>导出会被阻止</b>，但可以继续修改、试听和补录。</span></div>
-    <div class="card" data-rev="a">
-      <div class="spread"><span class="row"><span class="tag ink mono">07</span><span class="tag amber">待审核</span></span><span class="mono hint tiny">置信度 0.72</span></div>
-      <div class="tt" style="font-size:15px;margin:9px 0 8px">系统会采用<span class="w-low">非破坏式替换</span>，源录音始终保持不变。</div>
-      <div class="row" style="gap:8px"><button class="btn ghost sm"><svg class="ic"><use href="#i-speaker"/></svg>试听边界</button>
-        <button class="btn ghost sm" data-go="s10">改文字</button>
-        <button class="btn sm primary grow" data-confirm="a">确认文字与边界</button></div>
-    </div>
-    <div class="card" data-rev="b">
-      <div class="spread"><span class="row"><span class="tag ink mono">10</span><span class="tag amber">待审核</span></span><span class="mono hint tiny">置信度不可用</span></div>
-      <div class="tt" style="font-size:15px;margin:9px 0 8px">我们已经在鸿蒙手机上跑通了全部流程。</div>
-      <div class="hint tiny" style="margin-bottom:8px">这一句是手动合并产生的，没有可用的置信度数值，按待审核处理。</div>
-      <div class="row" style="gap:8px"><button class="btn ghost sm"><svg class="ic"><use href="#i-speaker"/></svg>试听边界</button>
-        <button class="btn ghost sm" data-go="s11">调边界</button>
-        <button class="btn sm primary grow" data-confirm="b">确认文字与边界</button></div>
-    </div>
-    <div class="marker">已确认<i></i></div>
-    <div class="card tight"><div class="row" style="gap:10px"><span class="tick ok"><svg class="ic"><use href="#i-check"/></svg></span>
-      <span style="flex:1;font-size:12.5px">句段 03 · 人工确认于 09:52<span class="mono hint tiny" style="display:block;margin-top:2px">文字、边界与审核策略版本均未变化</span></span></div></div>
-  </div>
-  <div class="bottom">
-    <div class="note red" id="revBlock"><svg class="ic"><use href="#i-warn"/></svg><span>还有 <b>2</b> 处未确认，导出已阻止。</span></div>
-    <button class="btn dis" id="revExport" disabled>导出成片</button>
-  </div>`}
+{id:'s13',stage:'③ 编辑',name:'检查识别结果',html:renderReview}
 );
 SCREENS.push(
 {id:'s14',stage:'④ 重录',name:'局部重录 · 回听与倒计时',html:`
@@ -906,9 +794,9 @@ SCREENS.push(
 
     <div class="state" data-rs="b">
       <div class="card" style="padding:34px 14px 28px"><div class="count" id="cdNum">3</div>
-        <div class="hint tiny" style="text-align:center;margin-top:12px">现在开始说这一句</div>
+        <div class="hint tiny" style="text-align:center;margin-top:12px">倒计时结束后再开始说话</div>
         <div class="tt" style="font-size:16px;text-align:center;margin-top:10px;color:var(--cobalt-ink)">下面是我们的演示视频。</div></div>
-      <div class="note blue"><svg class="ic"><use href="#i-eq"/></svg><span>环境尽量和上次一致，声音听起来会更像同一个人。</span></div>
+      <div class="note blue"><svg class="ic"><use href="#i-eq"/></svg><span>环境尽量和上次一致，新旧录音的听感会更一致。</span></div>
     </div>
 
     <div class="state" data-rs="c">
@@ -928,128 +816,13 @@ SCREENS.push(
     </div>
   </div>`},
 
-{id:'s15',stage:'④ 重录',name:'候选版本列表',html:`
-  <div class="appbar"><button class="ibtn" data-go="s14" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>句段 09 · 版本</h2>
-    <span class="mono hint tiny">源 6.4s</span></div>
-  <div class="scroll">
-    ${anno('P1-FR-012','P1-FR-013','P1-FR-014','异常处理：替换录音过短/削波')}
-    <div class="card tight"><div class="tt" style="font-size:15px">下面是我们的演示视频。</div></div>
-    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>每次重录都会新增一个候选版本，可以反复比较。时长允许和原句不同，后面的内容会自动顺延。</span></div>
+{id:'s15',stage:'④ 重录',name:'候选版本列表',html:renderVersions},
 
-    <button class="selbox" data-take="src"><div class="row" style="gap:10px">
-      <span class="radio"></span><span style="flex:1;min-width:0">
-        <span class="row" style="gap:7px"><b style="font-size:13.5px">源录音</b><span class="tag grey">基准</span></span>
-        <span class="mono hint tiny" style="display:block;margin-top:4px">00:55.9 → 01:02.3 · 6.4s · 原始语气</span></span>
-      <span class="mono hint tiny">试听</span></div></button>
+{id:'s16',stage:'④ 重录',name:'上下文试听与停顿',html:renderContext},
 
-    <button class="selbox" data-take="v1"><div class="row" style="gap:10px">
-      <span class="radio"></span><span style="flex:1;min-width:0">
-        <span class="row" style="gap:7px"><b style="font-size:13.5px">版本 1</b><span class="tag grey">3.0s</span><span class="tag grey">语速偏快</span></span>
-        <span class="mono hint tiny" style="display:block;margin-top:4px">质量检测：有效语音 ✓ · 无削波 · 响度差 -2.1 dB</span></span>
-      <span class="mono hint tiny">试听</span></div></button>
+{id:'s17',stage:'⑤ 成片',name:'全文预览 · 双轨对比',html:renderPreview},
 
-    <button class="selbox on" data-take="v2"><div class="row" style="gap:10px">
-      <span class="radio"></span><span style="flex:1;min-width:0">
-        <span class="row" style="gap:7px"><b style="font-size:13.5px">版本 2</b><span class="tag blue">正在使用</span><span class="tag grey">6.6s</span></span>
-        <span class="mono hint tiny" style="display:block;margin-top:4px">语气自然 · 响度差 -0.8 dB（已自动匹配）· 比原句长 0.2s</span></span>
-      <span class="mono hint tiny">试听</span></div></button>
-
-    <div class="selbox dead" data-take="v3"><div class="row" style="gap:10px">
-      <span class="radio"></span><span style="flex:1;min-width:0">
-        <span class="row" style="gap:7px"><b style="font-size:13.5px;color:var(--ink3)">版本 3</b><span class="tag red">未采用</span></span>
-        <span class="mono hint tiny" style="display:block;margin-top:4px">0.4s · 过短，未检测到有效语音。当前采用版本未变，可重新录一遍。</span></span>
-      <span class="mono hint tiny">重录</span></div></div>
-
-    <div class="note blue"><svg class="ic"><use href="#i-eq"/></svg><span>选中的版本会立即影响全文预览和导出。任何时候都能切回源录音。</span></div>
-  </div>
-  <div class="bottom">
-    <div class="row" style="gap:10px">
-      <button class="btn ghost grow" data-go="s14"><svg class="ic"><use href="#i-plus"/></svg>再录一版</button>
-      <button class="btn primary grow" data-go="s16">完成</button>
-    </div>
-  </div>`},
-
-{id:'s16',stage:'④ 重录',name:'上下文试听与停顿',html:`
-  <div class="appbar"><button class="ibtn" data-go="s15" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>连续试听</h2>
-    <button class="btn sm primary" data-go="s08">保存</button></div>
-  <div class="scroll">
-    ${anno('P1-FR-015','P1-FR-016','P1-AC-009')}
-    <div class="card tight" id="cueCards">
-      <div class="card-h"><span class="eyebrow">前一句 — 当前版本 — 后一句</span><span class="hint tiny">按成片实际顺序连放</span></div>
-      <div class="seg" data-cue="0" style="padding:8px 8px 8px 6px"><span class="idx">08</span><span class="body"><span class="txt" style="font-size:14px">整个过程完全离线，音频不会离开这台手机。</span>
-        <span class="meta"><span>源录音</span><span>·</span><span>6.4s</span></span></span><span class="prog"></span></div>
-      <div class="seg sel" data-cue="1" style="padding:8px 8px 8px 6px"><span class="idx">09</span><span class="body"><span class="txt" style="font-size:14px">下面是我们的演示视频。</span>
-        <span class="meta"><span style="color:var(--cobalt-ink)">版本 v2</span><span>·</span><span>6.6s</span></span></span><span class="prog"></span></div>
-      <div class="seg" data-cue="2" style="padding:8px 8px 8px 6px"><span class="idx">10</span><span class="body"><span class="txt" style="font-size:14px">我们已经在鸿蒙手机上跑通了全部流程。</span>
-        <span class="meta"><span>源录音</span><span>·</span><span>6.7s</span></span></span><span class="prog"></span></div>
-      <button class="btn primary" style="margin-top:11px" id="cuePlay"><svg class="ic"><use href="#i-play"/></svg>连续试听这一段</button>
-    </div>
-    <div class="card">
-      <div class="card-h"><span class="eyebrow">拼接参数</span><span class="tag grey mono">dspProfile v1.3</span></div>
-      <div class="spread" style="margin-bottom:4px"><span style="font-size:12.5px">句间停顿</span><span class="mono" style="font-size:12px" id="gapVal">120 ms</span></div>
-      <div class="slider" id="gapSlider"><span class="tr"><i style="width:20%"></i></span><span class="kn" style="left:20%"></span></div>
-      <div class="divide" style="margin:12px 0"></div>
-      <div class="spread" style="margin-bottom:12px"><span style="font-size:12.5px">响度匹配<small class="hint tiny" style="display:block;margin-top:2px">把补录的音量对齐到邻近句段</small></span><span class="switch on"><i></i></span></div>
-      <div class="spread"><span style="font-size:12.5px">淡入 / 淡出<small class="hint tiny" style="display:block;margin-top:2px">读自版本化配置，不随默认值变化而改变历史修订</small></span><span class="mono" style="font-size:12px">10 ms / 10 ms</span></div>
-    </div>
-    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>这里听到的顺序、版本和停顿，与全文预览、导出<b>读的是同一份编辑决策</b>。</span></div>
-  </div>`},
-
-{id:'s17',stage:'⑤ 成片',name:'全文预览 · 双轨对比',html:`
-  <div class="appbar"><button class="ibtn" data-go="s08" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>全文预览</h2>
-    <button class="ibtn" data-go="s18" aria-label="导出"><svg class="ic"><use href="#i-export"/></svg></button></div>
-  <div class="scroll">
-    ${anno('P1-FR-014','P1-FR-017','P1-AC-007','P1-AC-009')}
-    ${tapeTracks('full')}
-    <div class="card tight">
-      <div class="row" style="gap:9px">
-        <button class="ibtn" aria-label="上一句"><svg class="ic"><use href="#i-back"/></svg></button>
-        <button class="playbtn blue" style="width:42px;height:42px"><svg class="ic"><use href="#i-play"/></svg></button>
-        <button class="ibtn" aria-label="下一句"><svg class="ic"><use href="#i-next"/></svg></button>
-        <span style="flex:1;text-align:right"><span class="mono" style="font-size:13px">00:55.9</span>
-          <span class="mono hint tiny" style="display:block;margin-top:2px">成片 01:15.8</span></span>
-      </div>
-      <div class="bar" style="margin-top:10px"><i id="prevBar" style="width:74%"></i></div>
-      <div class="states" style="margin-top:12px" id="abStates">
-        <button data-ab="film" class="on">听成片</button><button data-ab="src">听源录音</button></div>
-      <div class="hint tiny" id="abHint" style="margin-top:9px">当前播放：成片时间轴 · 句段 09 用的是版本 v2</div>
-    </div>
-    <div class="card tight">
-      <div class="kv2"><span>句段总数</span><b>11</b></div>
-      <div class="kv2"><span>已替换句段</span><b style="color:var(--cobalt-ink)">1 处（句段 09）</b></div>
-      <div class="kv2"><span>成片时长</span><b>01:15.8</b></div>
-      <div class="kv2"><span>源录音时长</span><b>01:15.6</b></div>
-      <div class="kv2"><span>时长变化</span><b>+0.2s，后续内容自动顺延</b></div>
-      <div class="kv2"><span>拼接参数</span><b>dspProfile v1.3 · 停顿 120 ms</b></div>
-    </div>
-    <div class="note"><svg class="ic"><use href="#i-lock"/></svg><span>上轨的源录音从未被改写。替换只发生在成片时间轴上，随时可以切回原始内容。</span></div>
-  </div>
-  <div class="bottom"><button class="btn primary" data-go="s18"><svg class="ic"><use href="#i-export"/></svg>导出成片</button></div>`},
-
-{id:'s18',stage:'⑤ 成片',name:'导出设置',html:`
-  <div class="appbar"><button class="ibtn" data-go="s17" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>导出</h2></div>
-  <div class="scroll">
-    ${anno('P1-FR-018','NFR-003','NFR-005','P1-AC-009')}
-    <div class="card">
-      <div class="card-h"><span class="eyebrow">格式</span></div>
-      <button class="selbox on" data-fmt="m4a"><div class="row" style="gap:10px"><span class="radio"></span><span style="flex:1"><b style="font-size:13.5px">M4A</b><span class="hint tiny" style="display:block;margin-top:3px">通用性好，体积小，适合直接发给别人</span></span><span class="mono hint tiny">2.4 MB</span></div></button>
-      <div style="height:8px"></div>
-      <button class="selbox" data-fmt="wav"><div class="row" style="gap:10px"><span class="radio"></span><span style="flex:1"><b style="font-size:13.5px">WAV</b><span class="hint tiny" style="display:block;margin-top:3px">无损，导入剪辑软件不会二次压缩</span></span><span class="mono hint tiny">13.4 MB</span></div></button>
-    </div>
-    <div class="card tight">
-      <div class="kv2"><span>采样率 / 声道</span><b>44.1 kHz · 单声道</b></div>
-      <div class="kv2"><span>响度</span><b>-16 LUFS</b></div>
-      <div class="kv2"><span>淡入 / 淡出</span><b>10 ms / 10 ms</b></div>
-      <div class="kv2"><span>人工审核</span><b style="color:#3F5A28">2 / 2 已确认</b></div>
-    </div>
-    <div class="card tight">
-      <div class="card-h"><span class="eyebrow">文件名</span></div>
-      <input class="input" style="font-family:var(--sans);font-size:14px" value="挑战杯 · 作品介绍_成片.m4a">
-      <div class="hint tiny" style="margin-top:8px">保存在应用私有目录的「导出」文件夹，不会覆盖源录音。</div>
-    </div>
-    <div class="note"><svg class="ic"><use href="#i-info"/></svg><span>导出会<b>新建一个文件</b>，项目保持可编辑。导完之后还能继续改、继续录。</span></div>
-  </div>
-  <div class="bottom"><button class="btn primary" data-go="s19"><svg class="ic"><use href="#i-export"/></svg>开始导出</button></div>`},
+{id:'s18',stage:'⑤ 成片',name:'导出设置',html:renderExport},
 
 {id:'s19',stage:'⑤ 成片',name:'导出中 / 完成 / 中断',html:`
   <div class="appbar"><button class="ibtn" data-go="s18" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>导出</h2></div>
@@ -1073,12 +846,12 @@ SCREENS.push(
     <div class="state" data-ex="b">
       <div class="card" style="padding:22px 14px;text-align:center">
         <div class="tick ok" style="width:44px;height:44px;margin:0 auto 12px"><svg class="ic" style="width:22px"><use href="#i-check"/></svg></div>
-        <b style="font-size:16px">已导出</b>
+        <b style="font-size:16px">模拟导出完成</b>
         <div class="tt" style="font-size:14px;margin:10px 0 6px">挑战杯 · 作品介绍_成片.m4a</div>
         <div class="mono hint tiny">01:15.8 · 2.4 MB · 11 句段 · 1 处替换</div>
-        <div class="mono hint tiny" style="margin-top:6px">应用私有目录 / 导出 · 10:24</div>
+        <div class="mono hint tiny" style="margin-top:6px">交互演示，没有生成真实文件</div>
       </div>
-      <div class="row" style="gap:8px"><button class="btn ghost sm grow">打开所在位置</button><button class="btn ghost sm grow">分享</button></div>
+      <div class="row" style="gap:8px"><button class="btn ghost sm grow" data-action="demo">保存到文件（演示）</button><button class="btn ghost sm grow" data-action="demo">分享（演示）</button></div>
       <div class="note"><svg class="ic"><use href="#i-lock"/></svg><span>文件只在你主动分享时才会离开这台手机。</span></div>
       <button class="btn primary" data-go="s08">回到项目继续编辑</button>
     </div>
@@ -1155,6 +928,75 @@ SCREENS.push(
     <button class="opt danger" style="margin:0"><svg class="ic"><use href="#i-trash"/></svg><span class="t">删除项目<small>同时删除私有目录内的源录音副本、替换录音、缓存、转写结果与编辑记录</small></span></button>
   </div>`}
 );
+/* 原型交互状态：仅保留在当前页面会话，不代表真实音频处理。 */
+let selectedId = null, candidate = 'src', gapMs = 120, matchVolume = true;
+let feedback = '', onlyReplaced = false, reviewReturn = 's08', editReturn = 's08';
+let format = 'm4a', contextReturn='s08';
+const checks = {};
+function escapeHtml(value){ return String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function currentSegment(){ return SEGS.find(s=>s.id===selectedId); }
+function numberOf(s){ return SEGS.indexOf(s)+1; }
+function pendingSegments(){ return SEGS.filter(s=>s.review==='pending'); }
+function rebuildFilm(){ let offset=0; FILM=SEGS.map(s=>{const dur=adoptedDur(s);const f={id:s.id,from:offset,dur,rep:!!selTake(s)};offset+=dur;return f}); FILM_MS=offset; }
+function bar(title,back='s08'){ return `<div class="appbar"><button class="ibtn" data-go="${back}" aria-label="返回"><svg class="ic"><use href="#i-back"/></svg></button><h2>${title}</h2></div>`; }
+function button(label,action,extra='',style='primary'){return `<button class="btn ${style}" data-action="${action}" ${extra}>${label}</button>`;}
+function notice(text){ return `<div class="note blue" role="status">${text}</div>`; }
+function selectedText(s){return `<div class="card"><span class="tag blue">第 ${numberOf(s)} 句</span><p class="tt">${escapeHtml(s.t)}</p><span class="hint">当前使用：${s.sel||'原始录音'}</span></div>`;}
+function prototypeMessage(){feedback='这是交互演示，未接通真实音频播放、录音或文件处理。'; showFeedback();}
+function showFeedback(){const el=$('#feedback');if(el)el.textContent=feedback;}
+function renderEditor(){const s=currentSegment(), count=pendingSegments().length;return `${bar('挑战杯 · 作品介绍','s01')}
+  <div class="scroll">${notice('点选需要修改的句子，再重录。原始录音始终保留。')}
+    <div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div>
+    <button class="btn ghost" data-go="s13">${count?`请检查 ${count} 句话，确认后可导出`:'所有句子已确认，可以导出'}</button>
+    <label class="checkline"><input type="checkbox" id="filterReplaced" ${onlyReplaced?'checked':''}>只看已替换的句子</label>
+    <div id="segmentList">${SEGS.filter(s=>!onlyReplaced||selTake(s)).map(s=>segRow(s,numberOf(s)-1,{sel:s.id===selectedId})).join('')||'<p class="hint">还没有替换过的句子，取消筛选可查看全部。</p>'}</div>
+  </div><div class="bottom"><div id="selectionHint" class="hint">${s?`已选中第 ${numberOf(s)} 句`:'先在上方点选一句'}</div>
+    ${button(s?`重录第 ${numberOf(s)} 句`:'先选择一句','record',s?'':'disabled')}
+    <div class="row">${button('修改文字','edit',s?'':'disabled','ghost sm grow')}${button('更多操作','more',s?'':'disabled','ghost sm grow')}</div>
+    <div class="row"><button class="btn ghost sm grow" data-go="s17">试听完整成片</button><button class="btn ghost sm grow" data-go="s18">导出</button></div>
+  </div>`;}
+function renderMore(){const s=currentSegment(); if(!s)return renderEditor();return `${bar(`第 ${numberOf(s)} 句 · 更多操作`)}<div class="scroll">${selectedText(s)}
+  <div class="marker">修改这一句</div>${button('修改识别文字','edit','', 'ghost')}${button('重录这一句','record')}
+  <button class="btn ghost" data-go="s15">比较补录版本</button><button class="btn ghost" data-go="s16">试听前后文</button>
+  <details class="card"><summary>高级编辑 · 调整识别结果</summary><p class="hint">调整声音范围或合并、拆分后，已有补录可能不再适用；原音仍保留，需要重新检查。这些波形操作在本原型中仅展示设计。</p>
+  ${button('查看声音范围与拆分示例','boundary-demo','','ghost')}${button('查看合并与撤销示例','merge-demo','','ghost')}</details>
+  ${button('恢复这一句的原始录音','restore','','ghost')}</div>`;}
+function renderText(){const s=currentSegment();return `${bar(`第 ${numberOf(s)} 句 · 修改识别文字`,editReturn)}<div class="scroll">
+  ${notice('这里只修正识别文字，不会改变声音。想改说出的内容，请重录这一句。')}
+  <label for="editText">识别文字</label><textarea class="input" id="editText" rows="5">${escapeHtml(s.t)}</textarea>
+  <p class="hint">保存改动后，需要重新确认这句话的文字和声音范围。</p></div><div class="bottom">${button('保存文字','save-text')}</div>`;}
+function renderReview(){const items=SEGS.filter(s=>s.review==='pending'||s.reviewed).sort((a,b)=>Number(b.review==='pending')-Number(a.review==='pending'));return `${bar('检查并确认',reviewReturn)}<div class="scroll">
+  ${notice(`还有 ${pendingSegments().length} 句话需要检查。先核对文字，再确认声音是否完整，没有切掉开头或结尾。原型只演示确认流程，无真实声音。`)}
+  ${items.map(s=>`<div class="card" data-review="${s.id}"><span class="tag ${s.review==='pending'?'amber':'grey'}">第 ${numberOf(s)} 句 · ${s.review==='pending'?'待确认':'已确认'}</span><p class="tt">${escapeHtml(s.t)}</p>
+    ${button('试听这句话及前后文','review-listen',`data-id="${s.id}"`,'ghost')}
+    <label class="checkline"><input type="checkbox" data-check="text" data-id="${s.id}" ${checks[s.id]?.text||s.reviewed?'checked':''}>文字与我听到的一致</label>
+    <label class="checkline"><input type="checkbox" data-check="range" data-id="${s.id}" ${checks[s.id]?.range||s.reviewed?'checked':''}>声音范围完整，没有少字或多出邻句</label>
+    ${button('修改识别文字','review-edit',`data-id="${s.id}"`,'ghost sm')}
+  </div>`).join('')}<div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div></div>
+  <div class="bottom">${button(pendingSegments().length?'完成检查后继续导出':'继续导出','export',pendingSegments().length?'disabled':'')}</div>`;}
+function renderVersions(){const s=currentSegment();const versions=[{v:'src',dur:s.b-s.a,note:'可随时恢复'},...(s.takes||[])];return `${bar(`第 ${numberOf(s)} 句 · 补录版本`)}<div class="scroll">${selectedText(s)}
+  ${notice('选择和试听不会改变成片。点“使用此版本”才会替换。')}
+  ${versions.map(t=>`<div class="card"><label class="checkline"><input type="radio" name="candidate" value="${t.v}" ${candidate===t.v?'checked':''} ${t.q==='bad'?'disabled':''}>
+    ${t.v==='src'?'原始录音':`补录 ${t.v}`} · ${(t.dur/1000).toFixed(1)} 秒 ${((s.sel||'src')===t.v)?'· 当前使用':''}</label><p class="hint">${escapeHtml(t.note||'演示补录候选；尚未采用')}</p>${button('试听此版本','listen','','ghost sm')}</div>`).join('')}
+  <div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div></div><div class="bottom">${button(candidate==='src'?'恢复原始录音':'使用此版本','adopt')}
+    <div class="row"><button class="btn ghost sm grow" data-go="s14">再录一版</button><button class="btn ghost sm grow" data-go="s16">试听前后文</button></div></div>`;}
+function renderContext(){const s=currentSegment(),i=SEGS.indexOf(s);return `${bar(`第 ${numberOf(s)} 句 · 试听前后文`,contextReturn)}<div class="scroll">
+  ${SEGS.slice(Math.max(0,i-1),i+2).map(t=>`<div class="card"><span class="tag ${t===s?'blue':'grey'}">${t===s?'当前句':t===SEGS[i-1]?'前一句':'后一句'} · ${t===s&&contextReturn==='s15'?(candidate==='src'?'原始录音':candidate)+'（候选，未采用）':t.sel||'原始录音'}</span><p class="tt">${escapeHtml(t.t)}</p></div>`).join('')}
+  ${button('连续试听这段','listen')}
+  <details class="card"><summary>更多声音设置</summary><label for="pauseRange">句间停顿：<output id="pauseValue">${gapMs}</output> 毫秒</label><input id="pauseRange" type="range" min="0" max="600" value="${gapMs}">
+    <label class="checkline"><input type="checkbox" id="volumeMatch" ${matchVolume?'checked':''}>自动匹配音量</label><p class="hint">演示参数，不处理真实声音。正式应用按相同设置预览和导出。</p><details><summary>技术详情</summary><p class="hint">淡入 / 淡出各 10 ms · dspProfile v1.3</p></details></details>
+  <div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div></div><div class="bottom"><button class="btn primary" data-go="${contextReturn}">${contextReturn==='s15'?'回到版本比较':'回到编辑'}</button></div>`;}
+function renderPreview(){return `${bar('试听完整成片')}<div class="scroll">${tapeTracks('full')}
+  ${button('试听完整成片','listen')}${button('试听原始录音','listen','','ghost')}
+  <div class="card"><p>已替换 ${FILM.filter(f=>f.rep).length} 句话</p><p>成片时长：${sec2t(FILM_MS/1000)}</p><p>原始录音：${sec2t(SRC)}</p></div>
+  ${notice('原始录音仍然保留。回到编辑，选择一句后可以恢复原音。')}
+  <div id="feedback" role="status" class="hint">${escapeHtml(feedback)}</div></div><div class="bottom"><button class="btn primary" data-go="s18">导出成片</button></div>`;}
+function renderExport(){return `${bar('导出成片')}<div class="scroll">${notice('所有待检查的句子均已确认。导出会新建文件，不会覆盖原始录音。')}
+  <label for="exportFormat">音频格式</label><select class="input" id="exportFormat"><option value="m4a" ${format==='m4a'?'selected':''}>M4A · 体积小，适合分享</option><option value="wav" ${format==='wav'?'selected':''}>WAV · 适合继续剪辑</option></select>
+  <label for="exportName">文件名</label><input class="input" id="exportName" value="挑战杯 · 作品介绍_成片.${format}">
+  <p class="hint">成片时长 ${sec2t(FILM_MS/1000)}。正式应用将通过系统选择保存位置。</p>
+  <details class="card"><summary>音频参数</summary><p class="hint">44.1 kHz · 单声道 · 淡入 / 淡出各 10 ms</p></details>
+  ${notice('交互原型：仅演示导出状态，不会创建真实音频文件。')}</div><div class="bottom"><button class="btn primary" data-go="s19">模拟导出</button></div>`;}
 </script>
 <script>
 /* =========================================================
@@ -1171,27 +1013,52 @@ SCREENS.forEach(s=>{
 });
 SCREENS.forEach(s=>{
   const sec=document.createElement('section'); sec.className='screen'; sec.dataset.screen=s.id;
-  sec.innerHTML=s.html; screensEl.appendChild(sec);
+  sec.innerHTML=typeof s.html==='function'?'':s.html; screensEl.appendChild(sec);
 });
 
 let cur='s01';
 function go(id){
+  if(['s18','s19'].includes(id)&&pendingSegments().length){ reviewReturn=cur==='s13'?'s08':cur; id='s13'; }
+  if(['s09','s10','s14','s15','s16'].includes(id)&&!currentSegment()){ feedback='请先选择要修改的句子。'; id='s08'; }
+  if(id==='s16') contextReturn=cur;
+  if(id==='s15'&&cur!=='s16') candidate=currentSegment().sel||'src';
+  if(id==='s13'&&cur!=='s13'&&!['s18','s19','s10'].includes(cur)) reviewReturn=cur;
+  const definition=SCREENS.find(s=>s.id===id);
+  if(definition&&typeof definition.html==='function') document.querySelector(`.screen[data-screen="${id}"]`).innerHTML=definition.html();
   const sec=document.querySelector(`.screen[data-screen="${id}"]`); if(!sec) return;
   $$('.screen').forEach(x=>x.classList.toggle('on',x===sec));
   $$('.nav-i').forEach(x=>x.classList.toggle('on',x.dataset.go===id));
   cur=id;
+  $('#toast').textContent='';
   const s=SCREENS.find(x=>x.id===id);
   $('#here').textContent=`${id.toUpperCase()} · ${s.name}`;
   const sc=$('.scroll',sec); if(sc) sc.scrollTop=0;
   timers.forEach(clearInterval); timers.length=0;
-  if(id==='s03'){ startRec() }
-  if(id==='s14'){ setRec('a') }
-  if(id==='s19'){ setExp('a') }
+  if(id==='s03'){ $('#pauseBtn').dataset.on='0'; $('#pauseBtn').textContent='暂停';const pill=$('.pill-live',sec);pill.className='pill-live rec';pill.textContent='录制中';startRec() }
+  if(id==='s14'){
+    const s=currentSegment(); $('h2',sec).textContent=`重录 · 第 ${numberOf(s)} 句`;
+    $$('.tt',sec).forEach(el=>el.textContent=s.t);
+    $('.appbar .tag',sec).textContent=`原音 ${((s.b-s.a)/1000).toFixed(1)} 秒`;
+    const label=$('.state[data-rs="a"] .tag',sec); if(label)label.textContent=`第 ${numberOf(s)} 句`;
+    const cue=$('#cueBtn'); cue.disabled=numberOf(s)===1;
+    const cueLabel=$('#cueBar').parentElement.nextElementSibling;
+    cueLabel.textContent=numberOf(s)===1?'这是第一句，没有上一句':`第 ${numberOf(s)-1} 句 · 最后最多 3 秒（演示）`;
+    setRec('a');
+  }
+  if(id==='s03'){const outline=$('#outlineInput').value.trim();const hint=$('.card.tight .hint',sec);if(hint)hint.textContent=outline||'没有提纲也可以直接录。';}
+  if(id==='s08') updateSelection();
+  if(id==='s19'){
+    const done=$('.state[data-ex="b"]',sec);
+    $('.tt',done).textContent=$('#exportName')?.value||`成片.${format}`;
+    $('.mono',done).textContent=`${sec2t(FILM_MS/1000)} · ${SEGS.length} 句 · ${FILM.filter(f=>f.rep).length} 处替换（演示）`;
+    setExp('a');
+  }
 }
 const timers=[];
 
 /* 点击句段：文字与声音双向定位 */
 function pickSeg(el){
+  selectedId=el.dataset.seg; updateSelection();
   const list=el.parentElement; $$('[data-seg]',list).forEach(x=>{x.classList.remove('playing');x.classList.remove('sel')});
   el.classList.add('playing'); el.classList.add('sel');
   const id=el.dataset.seg, i=SEGS.findIndex(s=>s.id===id);
@@ -1210,6 +1077,7 @@ function startRec(){
   const bars=46; host.innerHTML=wave(3,bars,54,'live');
   const rects=[...host.querySelectorAll('rect')];
   const id=setInterval(()=>{
+    if($('#pauseBtn')?.dataset.on==='1')return;
     rects.forEach((r,i)=>{ const a=.15+Math.abs(Math.sin(i*.7+recT*.6))*.85*Math.random()*1.3;
       const hh=Math.max(2,Math.min(54,a*54)); r.setAttribute('height',hh.toFixed(1)); r.setAttribute('y',((54-hh)/2).toFixed(1)) });
     recT+=.12; const t=$('#recTime'); if(t) t.textContent='00:'+(47.3+recT).toFixed(1).padStart(4,'0');
@@ -1218,12 +1086,14 @@ function startRec(){
 
 /* 重录页三态 */
 function setRec(k){
+  timers.forEach(clearInterval); timers.length=0;
   $$('#recStates button').forEach(b=>b.classList.toggle('on',b.dataset.rs===k));
   $$('.state[data-rs]').forEach(s=>s.classList.toggle('on',s.dataset.rs===k));
   const btn=$('#startTake'); if(!btn) return;
+  btn.disabled=false;
   if(k==='a'){ btn.innerHTML='<svg class="ic"><use href="#i-mic"/></svg>开始重录'; btn.dataset.next='b' }
-  if(k==='b'){ btn.innerHTML='<svg class="ic"><use href="#i-mic"/></svg>准备好了，开始'; btn.dataset.next='c' }
-  if(k==='c'){ btn.innerHTML='<svg class="ic"><use href="#i-check"/></svg>停止并保存为 v3'; btn.dataset.next='v' }
+  if(k==='b'){ btn.textContent='请等待倒计时'; btn.disabled=true; }
+  if(k==='c'){ btn.innerHTML='<svg class="ic"><use href="#i-check"/></svg>停止并保存候选'; btn.dataset.next='v' }
   const host=$('#liveWave2');
   if(k==='c'&&host){ host.innerHTML=wave(17,40,46,'live');
     const rects=[...host.querySelectorAll('rect')]; let t=0;
@@ -1240,45 +1110,86 @@ function setRec(k){
 /* 导出三态 */
 let expT=68;
 function setExp(k){
+  timers.forEach(clearInterval);timers.length=0;
   $$('#expStates button').forEach(b=>b.classList.toggle('on',b.dataset.ex===k));
   $$('.state[data-ex]').forEach(s=>s.classList.toggle('on',s.dataset.ex===k));
-  if(k==='a'){ expT=68; const id=setInterval(()=>{ expT=Math.min(99,expT+.7);
-    const p=$('#expPct'), b=$('#expBar'); if(p) p.textContent=Math.round(expT)+'%'; if(b) b.style.width=expT+'%' },260);
+  if(k==='a'){ expT=68; const id=setInterval(()=>{ expT=Math.min(100,expT+3);
+    const p=$('#expPct'), b=$('#expBar'); if(p) p.textContent=Math.round(expT)+'%'; if(b) b.style.width=expT+'%'; if(expT>=100){clearInterval(id);setExp('b')} },260);
     timers.push(id) }
 }
 
-/* 审核确认 */
-let confirmed=new Set();
-function refreshReview(){
-  const n=confirmed.size;
-  const cnt=$('#revCount'); if(cnt) cnt.textContent=`${n} / 2 已确认`;
-  const block=$('#revBlock'), btn=$('#revExport');
-  if(block){ block.className='note '+(n>=2?'blue':'red');
-    block.innerHTML=n>=2?'<svg class="ic"><use href="#i-check"/></svg><span>2 处已确认，可以导出了。</span>'
-      :`<svg class="ic"><use href="#i-warn"/></svg><span>还有 <b>${2-n}</b> 处未确认，导出已阻止。</span>` }
-  if(btn){ btn.className='btn '+(n>=2?'primary':'dis'); btn.disabled=n<2;
-    btn.innerHTML=n>=2?'导出成片':'导出成片（需先完成审核）' }
+function updateSelection(){
+  const s=currentSegment();
+  const sec=document.querySelector('.screen[data-screen="s08"]');
+  const record=$('[data-action="record"]',sec);if(!record)return;
+  record.disabled=!s;record.textContent=s?`重录第 ${numberOf(s)} 句`:'先选择一句';
+  for(const action of ['edit','more'])$(`[data-action="${action}"]`,sec).disabled=!s;
+  $('#selectionHint').textContent=s?`已选中第 ${numberOf(s)} 句`:'先在上方点选一句';
+  $$('[data-seg]',sec).forEach(el=>{const active=el.dataset.seg===selectedId;el.classList.toggle('sel',active);el.setAttribute('aria-pressed',String(active));});
 }
+function announce(text){feedback=text;showFeedback();const el=$('#toast');el.textContent=text;}
+function commitVersion(version){
+  const s=currentSegment();if(!s)return;
+  if(version!=='src'&&!(s.takes||[]).some(t=>t.v===version&&t.q!=='bad'))return;
+  s.sel=version==='src'?null:version;rebuildFilm();
+  feedback=`第 ${numberOf(s)} 句已${s.sel?'使用补录 '+s.sel:'恢复原始录音'}。原始录音仍保留。`;
+  go('s08');announce(feedback);
+}
+// Product actions precede generic navigation and never use a second independent gate.
+document.addEventListener('click',e=>{
+  const action=e.target.closest('[data-action]');if(!action)return;
+  const kind=action.dataset.action;
+  if(['listen','review-listen','demo'].includes(kind)){announce('交互演示：此操作尚未接通真实音频或文件能力。');return;}
+  if(kind==='record'){if(currentSegment())go('s14');return;}
+  if(kind==='more'){if(currentSegment())go('s09');return;}
+  if(kind==='edit'||kind==='review-edit'){
+    editReturn=cur;if(kind==='review-edit')selectedId=action.dataset.id;
+    if(currentSegment())go('s10');return;
+  }
+  if(kind==='save-text'){
+    const s=currentSegment(),value=$('#editText').value.trim();
+    if(!value){announce('请输入识别文字，或返回保留原来的文字。');return;}
+    if(value!==s.t){s.t=value;s.words=[];s.review='pending';s.reviewed=false;delete checks[s.id];feedback=`第 ${numberOf(s)} 句文字已更新，需要重新确认文字和声音范围。`;}
+    go(editReturn);return;
+  }
+  if(kind==='adopt'){commitVersion(candidate);return;}
+  if(kind==='restore'){commitVersion('src');return;}
+  if(kind==='export'){go('s18');return;}
+  if(kind==='boundary-demo'||kind==='merge-demo'){
+    announce('以下是固定示例页面，仅展示高级编辑设计，不会修改当前句子。');
+    go(kind==='boundary-demo'?'s11':'s12');return;
+  }
+});
+document.addEventListener('change',e=>{
+  const el=e.target;
+  if(!el.closest('.screen.on')||el.closest('.gal-item'))return;
+  if(el.id==='filterReplaced'){onlyReplaced=el.checked;go('s08');}
+  if(el.name==='candidate'){candidate=el.value;const b=$('[data-action="adopt"]');b.textContent=candidate==='src'?'恢复原始录音':'使用此版本';}
+  if(el.dataset.check){
+    const s=SEGS.find(s=>s.id===el.dataset.id);if(!s)return;
+    checks[s.id]=checks[s.id]||{text:!!s.reviewed,range:!!s.reviewed};
+    checks[s.id][el.dataset.check]=el.checked;
+    s.reviewed=checks[s.id].text&&checks[s.id].range;s.review=s.reviewed?'approved':'pending';
+    const card=el.closest('[data-review]');$('.tag',card).textContent=`第 ${numberOf(s)} 句 · ${s.reviewed?'已确认':'待确认'}`;
+    const b=$('[data-action="export"]');b.disabled=pendingSegments().length>0;b.textContent=b.disabled?'完成检查后继续导出':'继续导出';
+    const note=$('.screen.on .note');note.textContent=`还有 ${pendingSegments().length} 句话需要检查。确认文字和声音范围后可导出。`;
+  }
+  if(el.id==='volumeMatch')matchVolume=el.checked;
+  if(el.id==='exportFormat'){format=el.value;const input=$('#exportName');input.value=input.value.replace(/\.(m4a|wav)$/i,'')+'.'+format;}
+});
+document.addEventListener('input',e=>{if(e.target.id==='pauseRange'){gapMs=Number(e.target.value);$('#pauseValue').textContent=gapMs;}});
+$('#modeBtn').addEventListener('click',()=>{
+  const user=document.body.classList.toggle('user-mode');
+  $('#modeBtn').textContent=user?'展开演示导航':'收起演示导航';
+  if(user){document.body.classList.remove('anno-on');$('#annoBtn').classList.remove('on');setView('single');}
+  fit();
+});
 
 /* 统一事件代理 */
 document.addEventListener('click',e=>{
   const gi=e.target.closest('.gal-item'); if(gi){ setView('single'); go(gi.dataset.screen); return }
   const g=e.target.closest('[data-go]'); if(g){ go(g.dataset.go); return }
   const sgel=e.target.closest('[data-seg]'); if(sgel){ pickSeg(sgel); return }
-  const cn=e.target.closest('[data-confirm]');
-  if(cn){ const k=cn.dataset.confirm, card=document.querySelector(`[data-rev="${k}"]`);
-    if(confirmed.has(k)){ confirmed.delete(k);
-      const s=card.querySelector('.tag.grey'); if(s) s.outerHTML='<span class="tag amber">待审核</span>';
-      cn.textContent='确认文字与边界'; cn.classList.remove('ghost') }
-    else { confirmed.add(k);
-      const t=card.querySelector('.tag.amber'); if(t) t.outerHTML='<span class="tag grey"><svg class="ic"><use href="#i-check"/></svg>已确认</span>';
-      cn.textContent='已确认'; cn.classList.add('ghost') }
-    refreshReview(); return }
-  const tk=e.target.closest('[data-take]');
-  if(tk){ if(!tk.classList.contains('dead')){ const sib=tk.parentElement.querySelectorAll('[data-take]');
-      sib.forEach(x=>x.classList.remove('on')); tk.classList.add('on');
-      tk.querySelectorAll('.tag.blue').forEach(x=>x.remove());
-      const b=tk.querySelector('b'); if(b) b.insertAdjacentHTML('afterend','<span class="tag blue">正在使用</span>'); } return }
   const rs=e.target.closest('[data-rs]'); if(rs){ setRec(rs.dataset.rs); return }
   const ex=e.target.closest('[data-ex]'); if(ex){ setExp(ex.dataset.ex); return }
   const ab=e.target.closest('[data-ab]');
@@ -1288,10 +1199,10 @@ document.addEventListener('click',e=>{
   const fm=e.target.closest('[data-fmt]'); if(fm){ $$('.screen[data-screen="s18"] [data-fmt]').forEach(x=>x.classList.toggle('on',x===fm)); return }
   const wc=e.target.closest('#wordChips .chip');
   if(wc){ const ta=$('#editText'); if(ta){ ta.value=ta.value.replace(/[。”]$/,'')+' '+wc.textContent+'。'; } return }
-  if(e.target.closest('#startTake')){ const b=$('#startTake'); if(b.dataset.next==='v'){ go('s15') } else setRec(b.dataset.next); return }
+  if(e.target.closest('#startTake')){ const b=$('#startTake'); if(b.dataset.next==='v'){ const s=currentSegment(); s.takes=s.takes||[]; s.takes.push({v:'v'+(s.takes.length+1),dur:s.b-s.a,q:'ok',note:'模拟录制的候选，未使用真实麦克风'}); feedback='已保存一个演示候选，成片仍使用原来的版本。'; go('s15') } else setRec(b.dataset.next); return }
   if(e.target.closest('#pauseBtn')){ const b=$('#pauseBtn'); const on=b.dataset.on==='1';
     b.dataset.on=on?'0':'1'; b.innerHTML=on?'<svg class="ic"><use href="#i-pause"/></svg>暂停':'<svg class="ic"><use href="#i-play"/></svg>继续';
-    const pill=document.querySelector('.pill-live.rec'); if(pill){ pill.className='pill-live '+(on?'pause':'rec'); pill.innerHTML=on?'暂停中':'<span class="dot"></span>录制中' } return }
+    const pill=document.querySelector('.pill-live.rec'); if(pill){ pill.className='pill-live '+(on?'rec':'pause'); pill.innerHTML=on?'<span class="dot"></span>录制中':'暂停中' } return }
   if(e.target.closest('#cueBtn')){ const bar=$('#cueBar'); if(!bar) return; let p=0;
     const id=setInterval(()=>{ p+=4; bar.style.width=Math.min(100,p)+'%'; if(p>=100) clearInterval(id) },60); timers.push(id); return }
   if(e.target.closest('#cuePlay')){ const cards=$$('#cueCards .seg'); cards.forEach(c=>c.classList.remove('playing'));
@@ -1331,6 +1242,7 @@ function buildGal(){
     const item=document.createElement('div'); item.className='gal-item'; item.dataset.screen=s.id;
     const mini=document.createElement('div'); mini.className='mini';
     const p=$('#phone').cloneNode(true);
+    if(typeof s.html==='function') p.querySelector(`.screen[data-screen="${s.id}"]`).innerHTML=['s09','s10','s15','s16'].includes(s.id)&&!currentSegment()?bar(s.name)+notice('请先在编辑页选择一句，再查看此页面。'):s.html();
     p.removeAttribute('id'); $$('[id]',p).forEach(x=>x.removeAttribute('id'));
     $$('.screen',p).forEach(el=>el.classList.toggle('on', el.dataset.screen===s.id));
     mini.appendChild(p);
@@ -1345,7 +1257,7 @@ const FLOW=[
  ['G','前后文连续试听并选版','S16',''],['H','全文预览 · 双轨对比','S17',''],['I','本地导出完整音频','S18 / S19','']
 ];
 const GATES=[
- ['低置信度人工审核','S13 · 未确认则阻止导出','gate'],
+ ['检查识别结果','S13 · 未确认则阻止导出','gate'],
  ['导入校验失败 / 无有效语音','S05 / S07 · 保留源录音与出口','gate'],
  ['录制被打断 / 进程结束','S20 · 待确认草稿 + 状态恢复','gate'],
  ['替换版本不可用 / 过短 / 削波','S15 · 存为未采用候选，当前版本不变','gate'],
@@ -1369,7 +1281,7 @@ function buildFlow(){
 /* 按钮与键盘 */
 $('#annoBtn').addEventListener('click',()=>{ const b=$('#annoBtn'); b.classList.toggle('on'); document.body.classList.toggle('anno-on') });
 $('#viewBtn').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b) setView(b.dataset.view) });
-document.addEventListener('keydown',e=>{ if(e.key!=='ArrowRight'&&e.key!=='ArrowLeft') return;
+document.addEventListener('keydown',e=>{ if(document.body.classList.contains('user-mode')||e.target.closest('input,textarea,select,[contenteditable]')||(e.key!=='ArrowRight'&&e.key!=='ArrowLeft')) return;
   const i=SCREENS.findIndex(s=>s.id===cur); const n=SCREENS[Math.max(0,Math.min(SCREENS.length-1,i+(e.key==='ArrowRight'?1:-1)))];
   if(n){ setView('single'); go(n.id) } });
 
@@ -1379,7 +1291,7 @@ function fit(){ const c=document.querySelector('.canvas'); const f=Math.min(1,(c
 window.addEventListener('resize',fit);
 
 /* 启动 */
-go('s01'); refreshReview(); fit();
+go('s01'); fit();
 setView('single');
 console.log('AudioPatch prototype ready ·', SCREENS.length, 'screens');
 </script>
