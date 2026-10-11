@@ -8,6 +8,7 @@ export interface Progress { completed: number; total: number; }
 export interface CapabilityRequest {
   operation: string;
   selectedSegmentId: string;
+  auditionTakeId: string;
   project: Project | undefined;
   manifest: RenderPiece[];
   optionalScript: string;

@@ -1,11 +1,5 @@
 const assert = require('node:assert/strict');
-const fs = require('node:fs');
-const ts = require('/Applications/Visual Studio Code.app/Contents/Resources/app/extensions/node_modules/typescript/lib/typescript.js');
-require.extensions['.ts'] = (module, filename) => {
-  module._compile(ts.transpileModule(fs.readFileSync(filename, 'utf8'), {
-    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2020 }
-  }).outputText, filename);
-};
+require('./register.cjs');
 const { EditorSession } = require('../entry/src/main/ets/application/EditorSession.ts');
 const { AppServices } = require('../entry/src/main/ets/composition/AppServices.ts');
 const { Project, Segment } = require('../entry/src/main/ets/domain/Project.ts');

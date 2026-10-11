@@ -1,4 +1,6 @@
 .DS_Store
+node_modules/
+.idea/
 .hvigor/
 oh_modules/
 entry/build/

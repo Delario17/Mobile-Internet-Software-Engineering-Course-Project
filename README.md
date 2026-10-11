@@ -1,0 +1,31 @@
+# AudioPatch
+
+基于转写文本的本地音频局部重录应用。原生 ArkTS / ArkUI，HarmonyOS Stage 模型，最低兼容版本固定为 HarmonyOS 6.0.0（API 20）。产品设计见 [需求规格](项目一需求规格说明.md)、[架构](项目一架构设计.md) 和 [详细设计](详细设计.md)。
+
+## 原生构建
+
+1. 安装支持 HarmonyOS 6.0.0 API 20 的 DevEco Studio 和相应 SDK。
+2. 用 DevEco 打开仓库根目录，同步 hvigor 和 ohpm 依赖。`hvigor/hvigor-config.json5` 为 6.0.0 工程模型；仅使用 IDE 配套的官方构建插件。
+3. 在工程结构的 Signing Configs 中配置本机调试签名，关联 `default` 产品。证书、密码、设备 UDID、签名配置和 `local.properties` 属于本机配置，不应提交仓库。
+4. 在 API 20 及以上的官方模拟器或鸿蒙手机上选择 `entry` 运行。正式验收仍需参考手机、飞行模式和异常恢复测试。
+
+命令行构建：设置 `HARMONY_HVIGORW` 为本机 DevEco 中真实存在的官方 `hvigorw`/`hvigorw.js`，运行 `npm run build:harmony`。使用 JS 包装器时，可设置 `HARMONY_NODE` 为 DevEco 配套的 Node 可执行文件。SDK、JDK、ohpm 和签名由 DevEco 配置；此脚本不替代 SDK 安装。缺少工具时退出码为 2。`modelVersion` 是工程开发态版本，不等于 `compatibleSdkVersion`，使用更新 IDE 时按官方同步提示处理开发态配置，最低兼容 API 20 不变。
+
+## 开发检查
+
+Node 24 或更高版本；推荐 pnpm 11.19.0，仓库已提交锁文件。运行 `pnpm install --frozen-lockfile --ignore-scripts`，然后：
+
+```sh
+pnpm test
+pnpm run check
+```
+
+也可运行 `npm install --ignore-scripts`、`npm test`、`npm run check`。TypeScript 5.9.3（Apache-2.0）用于开发层类型检查及测试转译，JSON5 2.2.3（MIT）用于工程配置检查，两者不进入鸿蒙应用。测试不依赖 VS Code 安装路径。
+
+`npm run check` 检查平台无关代码、API 20 配置、Stage、页面与字符串资源、离线权限；不等价于 ArkTS 编译。CI 同样只执行这些可移植检查。
+
+## 当前交付范围
+
+以 [实现进度](docs/implementation-status.md) 为准。尚未核验的设备能力返回明确未接入错误，不提供虚假录音、识别、保存或导出结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
+
+官方构建资料：[hvigorw 命令](https://developer.huawei.com/consumer/en/doc/harmonyos-guides/ide-hvigor-commandline)、[hvigor 配置](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-hvigor-set-options)。设备能力的核验状态见 [API 接入证据](docs/huawei-api-evidence.md)。

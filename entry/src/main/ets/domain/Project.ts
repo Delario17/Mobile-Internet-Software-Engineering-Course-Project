@@ -12,6 +12,7 @@ export class Segment {
   reviewedAtMs: number = 0;
   reviewedBy: string = '';
   selectedTakeId: string = '';
+  ancestorIds: string[] = [];
   constructor(id: string, text: string, startUs: number, endUs: number) {
     this.id = id; this.text = text; this.startUs = startUs; this.endUs = endUs;
   }
@@ -30,6 +31,10 @@ export class Take {
 }
 
 export class Project {
+  schemaVersion: number = 1;
+  updatedAtMs: number = 0;
+  sequence: number = 0;
+  recoveryWarning: boolean = false;
   id: string;
   sourceAssetId: string;
   sourceDurationUs: number;
@@ -40,6 +45,48 @@ export class Project {
   constructor(id: string, sourceAssetId: string, sourceDurationUs: number) {
     this.id = id; this.sourceAssetId = sourceAssetId; this.sourceDurationUs = sourceDurationUs;
   }
+}
+
+function uniqueSegmentId(project: Project, id: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(id) || project.segments.some((s: Segment) => s.id === id) ||
+    project.takes.some((t: Take) => t.segmentId === id) ||
+    project.segments.some((s: Segment) => s.ancestorIds.includes(id))) { throw new Error('INVALID_SEGMENT_ID'); }
+}
+
+export function addManualSegment(project: Project, id: string, text: string, startUs: number, endUs: number): void {
+  uniqueSegmentId(project, id);
+  const segment: Segment = new Segment(id, text, startUs, endUs);
+  editRange(project, segment, startUs, endUs);
+  project.segments.push(segment);
+  project.segments.sort((a: Segment, b: Segment) => a.startUs - b.startUs);
+}
+
+// P1-FR-009/013: preserve take history and source coordinates, invalidate review/adoption.
+export function splitSegment(project: Project, id: string, atUs: number, leftId: string, rightId: string,
+  leftText: string, rightText: string): void {
+  const original: Segment | undefined = project.segments.find((s: Segment) => s.id === id);
+  if (!original || !Number.isSafeInteger(atUs) || atUs <= original.startUs || atUs >= original.endUs) {
+    throw new Error('INVALID_SPLIT');
+  }
+  uniqueSegmentId(project, leftId); uniqueSegmentId(project, rightId);
+  if (leftId === rightId) { throw new Error('INVALID_SEGMENT_ID'); }
+  const left: Segment = new Segment(leftId, leftText, original.startUs, atUs);
+  const right: Segment = new Segment(rightId, rightText, atUs, original.endUs);
+  left.ancestorIds = original.ancestorIds.concat([original.id]); right.ancestorIds = left.ancestorIds.slice();
+  project.segments.splice(project.segments.indexOf(original), 1, left, right);
+}
+
+export function mergeSegments(project: Project, firstId: string, secondId: string, id: string): void {
+  const ordered: Segment[] = project.segments.slice().sort((a: Segment, b: Segment) => a.startUs - b.startUs);
+  const index: number = ordered.findIndex((s: Segment) => s.id === firstId);
+  const first: Segment | undefined = ordered[index];
+  const second: Segment | undefined = ordered[index + 1];
+  if (!first || !second || second.id !== secondId) { throw new Error('INVALID_MERGE'); }
+  uniqueSegmentId(project, id);
+  const merged: Segment = new Segment(id, `${first.text} ${second.text}`.trim(), first.startUs, second.endUs);
+  merged.ancestorIds = first.ancestorIds.concat(second.ancestorIds, [first.id, second.id]);
+  project.segments = ordered.filter((s: Segment) => s.id !== firstId && s.id !== secondId);
+  project.segments.push(merged); project.segments.sort((a: Segment, b: Segment) => a.startUs - b.startUs);
 }
 
 export interface RenderPiece {
