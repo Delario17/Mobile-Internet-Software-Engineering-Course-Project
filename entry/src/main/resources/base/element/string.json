@@ -1,5 +1,4 @@
 { "string": [
-  { "name": "app_name", "value": "AudioPatch" },
   { "name": "module_desc", "value": "本地音频编辑" },
   { "name": "home_title", "value": "录完一整段，只重录其中一句" },
   { "name": "record_full", "value": "完整录制" },

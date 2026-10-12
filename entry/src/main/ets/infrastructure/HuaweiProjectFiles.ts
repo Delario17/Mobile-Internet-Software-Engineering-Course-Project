@@ -1,15 +1,57 @@
+import { fileIo as fs } from '@kit.CoreFileKit';
+import { BusinessError } from '@kit.BasicServicesKit';
 import { ProjectFiles } from '../application/ProjectStore';
 
+// P1-FR-019/020: project metadata stays under the application-private filesDir.
 export class HuaweiProjectFiles implements ProjectFiles {
-  // TODO(HUAWEI_API): 用官方 Core File Kit 接入应用私有 projects 目录。
-  // 输入：已校验项目 ID 下的相对路径及 UTF-8 文本；输出：实际读取、持久写入和同盘原子重命名。
-  // write 必须创建父目录、flush 并关闭；rename 必须创建目标父目录，保证替换 HEAD 的原子性；
-  // list 只返回直接子文件名。需核验 API 20 的 filesDir、fsync/rename 崩溃持久性、
-  // 错误码、目录权限、生命周期和许可；不得把暂存文件当成已提交修订。
-  // 官方文档：https://developer.huawei.com/consumer/en/doc/harmonyos-references/js-apis-file-fs
-  // 文档正文与上述语义尚未完整核验，当前明确失败，不伪造设备保存成功。
-  async read(path: string): Promise<string | undefined> { throw new Error('STORAGE_NOT_INTEGRATED'); }
-  async write(path: string, text: string): Promise<void> { throw new Error('STORAGE_NOT_INTEGRATED'); }
-  async rename(from: string, to: string): Promise<void> { throw new Error('STORAGE_NOT_INTEGRATED'); }
-  async list(folder: string): Promise<string[]> { throw new Error('STORAGE_NOT_INTEGRATED'); }
+  private root: string;
+  constructor(root: string) { this.root = root; }
+
+  private path(relative: string): string {
+    if (this.root === '' || relative.startsWith('/') || relative.includes('..') || relative.includes('\\')) {
+      throw new Error('INVALID_PROJECT_PATH');
+    }
+    return relative === '' ? this.root : `${this.root}/${relative}`;
+  }
+
+  private parent(path: string): string {
+    const separator: number = path.lastIndexOf('/');
+    return separator <= 0 ? this.root : path.slice(0, separator);
+  }
+
+  async read(relative: string): Promise<string | undefined> {
+    try { return fs.readTextSync(this.path(relative)); }
+    catch (error) {
+      const failure: BusinessError = error as BusinessError;
+      if (failure.code === 13900002) { return undefined; }
+      throw error;
+    }
+  }
+
+  async write(relative: string, text: string): Promise<void> {
+    const path: string = this.path(relative);
+    fs.mkdirSync(this.parent(path), true);
+    const file: { fd: number } = fs.openSync(path, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    try {
+      const bytes: number = fs.writeSync(file.fd, text);
+      if (bytes <= 0 && text.length > 0) { throw new Error('PARTIAL_WRITE'); }
+      fs.fdatasyncSync(file.fd);
+    } finally { fs.closeSync(file); }
+  }
+
+  async rename(from: string, to: string): Promise<void> {
+    const source: string = this.path(from);
+    const destination: string = this.path(to);
+    fs.mkdirSync(this.parent(destination), true);
+    fs.renameSync(source, destination);
+  }
+
+  async list(relative: string): Promise<string[]> {
+    try { return fs.listFileSync(this.path(relative)); }
+    catch (error) {
+      const failure: BusinessError = error as BusinessError;
+      if (failure.code === 13900002) { return []; }
+      throw error;
+    }
+  }
 }
