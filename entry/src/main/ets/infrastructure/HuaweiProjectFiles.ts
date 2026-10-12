@@ -31,7 +31,7 @@ export class HuaweiProjectFiles implements ProjectFiles {
   async write(relative: string, text: string): Promise<void> {
     const path: string = this.path(relative);
     fs.mkdirSync(this.parent(path), true);
-    const file: { fd: number } = fs.openSync(path, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+    const file = fs.openSync(path, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
     try {
       const bytes: number = fs.writeSync(file.fd, text);
       if (bytes <= 0 && text.length > 0) { throw new Error('PARTIAL_WRITE'); }
