@@ -12,7 +12,10 @@ if (!wrapper || !fs.existsSync(wrapper)) {
 const args = ['--mode', 'module', '-p', 'product=default', '-p', 'module=entry@default',
   '-p', 'buildMode=debug', 'assembleHap', '--no-daemon'];
 const js = /\.js$/.test(wrapper);
-const result = spawnSync(js ? (process.env.HARMONY_NODE || process.execPath) : wrapper, js ? [wrapper, ...args] : args,
-  { cwd: root, stdio: 'inherit', shell: false });
+const node = process.env.HARMONY_NODE || process.execPath;
+const nodeDirectory = path.dirname(node);
+const environment = { ...process.env, PATH: `${nodeDirectory}${path.delimiter}${process.env.PATH || ''}` };
+const result = spawnSync(js ? node : wrapper, js ? [wrapper, ...args] : args,
+  { cwd: root, stdio: 'inherit', shell: false, env: environment });
 if (result.error) console.error(result.error.message);
 process.exit(result.status === null ? 1 : result.status);

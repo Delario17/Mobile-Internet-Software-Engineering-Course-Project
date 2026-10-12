@@ -6,8 +6,14 @@ const { execFileSync } = require('node:child_process');
 const root = path.resolve(__dirname, '..');
 const read = file => JSON5.parse(fs.readFileSync(path.join(root, file), 'utf8'));
 const profile = read('build-profile.json5');
+const modelVersion = read('hvigor/hvigor-config.json5').modelVersion;
+assert.match(modelVersion, /^[1-9][0-9]*\.[0-9]+\.[0-9]+$/,
+  'Hvigor modelVersion must be an IDE development-state version');
+assert.equal(read('oh-package.json5').modelVersion, modelVersion,
+  'Project oh-package and Hvigor modelVersion must match');
 for (const product of profile.app.products) {
   assert.equal(product.compatibleSdkVersion, '6.0.0(20)', 'compatible SDK must remain API 20');
+  assert.equal(product.targetSdkVersion, '6.0.0(20)', 'target SDK must remain API 20');
 }
 assert.equal(read('entry/build-profile.json5').apiType, 'stageMode');
 const moduleConfig = read('entry/src/main/module.json5').module;
@@ -20,7 +26,10 @@ assert(!tracked.some(file => /(^|\/)(local\.properties|certs)(\/|$)|\.(p12|pfx|c
 for (const page of read('entry/src/main/resources/base/profile/main_pages.json').src) {
   assert(fs.existsSync(path.join(root, 'entry/src/main/ets', `${page}.ets`)), `Missing page: ${page}`);
 }
-const strings = new Set(read('entry/src/main/resources/base/element/string.json').string.map(item => item.name));
+const strings = new Set([
+  ...read('AppScope/resources/base/element/string.json').string,
+  ...read('entry/src/main/resources/base/element/string.json').string
+].map(item => item.name));
 function inspect(directory) {
   for (const file of fs.readdirSync(directory, { withFileTypes: true })) {
     const filename = path.join(directory, file.name);

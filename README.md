@@ -5,7 +5,7 @@
 ## 原生构建
 
 1. 安装支持 HarmonyOS 6.0.0 API 20 的 DevEco Studio 和相应 SDK。
-2. 用 DevEco 打开仓库根目录，同步 hvigor 和 ohpm 依赖。`hvigor/hvigor-config.json5` 为 6.0.0 工程模型；仅使用 IDE 配套的官方构建插件。
+2. 将工程放在只含英文字母、数字、连字符、下划线、英文括号、空格、句点或 `@` 的路径中；Hvigor 6.26 会拒绝当前含“赛道三”的路径。再用 DevEco 26.0.0 打开工程根目录，同步 hvigor 和 ohpm 依赖。`hvigor/hvigor-config.json5` 的 `modelVersion` 为 IDE 开发态版本 `26.0.0`，最低兼容版本仍由 `build-profile.json5` 固定为 `6.0.0(20)`；仅使用 IDE 配套的官方构建插件。
 3. 在工程结构的 Signing Configs 中配置本机调试签名，关联 `default` 产品。证书、密码、设备 UDID、签名配置和 `local.properties` 属于本机配置，不应提交仓库。
 4. 在 API 20 及以上的官方模拟器或鸿蒙手机上选择 `entry` 运行。正式验收仍需参考手机、飞行模式和异常恢复测试。
 

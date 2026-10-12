@@ -4,6 +4,7 @@ const root = path.resolve(__dirname, '../entry/src/main/ets');
 const files = ['domain/Project.ts', 'domain/Capabilities.ts', 'infrastructure/HuaweiCapabilities.ts',
   'application/EditorSession.ts', 'application/ProjectStore.ts', 'infrastructure/HuaweiProjectFiles.ts',
   'composition/AppServices.ts'].map(file => path.join(root, file));
+files.push(path.join(__dirname, 'arkts-kits.d.ts'));
 const program = ts.createProgram(files, { noEmit: true, strict: true, target: ts.ScriptTarget.ES2020,
   module: ts.ModuleKind.ES2020 });
 const diagnostics = ts.getPreEmitDiagnostics(program);
