@@ -4,6 +4,7 @@ node_modules/
 .hvigor/
 oh_modules/
 entry/build/
+entry/.preview/
 build/
 local.properties
 *.p12

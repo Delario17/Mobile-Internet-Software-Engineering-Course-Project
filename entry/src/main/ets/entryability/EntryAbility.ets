@@ -4,7 +4,7 @@ import { AppServices } from '../composition/AppServices';
 
 export default class EntryAbility extends UIAbility {
   onCreate(): void {
-    AppServices.configureFiles(this.context.filesDir);
+    AppServices.configureDevice(this.context, this.context.filesDir);
   }
   onWindowStageCreate(stage: window.WindowStage): void {
     stage.loadContent('pages/Index', () => { });

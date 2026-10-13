@@ -7,7 +7,7 @@
 1. 安装支持 HarmonyOS 6.0.0 API 20 的 DevEco Studio 和相应 SDK。
 2. 将工程放在只含英文字母、数字、连字符、下划线、英文括号、空格、句点或 `@` 的路径中；Hvigor 6.26 会拒绝当前含“赛道三”的路径。再用 DevEco 26.0.0 打开工程根目录，同步 hvigor 和 ohpm 依赖。`hvigor/hvigor-config.json5` 的 `modelVersion` 为 IDE 开发态版本 `26.0.0`，最低兼容版本仍由 `build-profile.json5` 固定为 `6.0.0(20)`；仅使用 IDE 配套的官方构建插件。
 3. 在工程结构的 Signing Configs 中配置本机调试签名，关联 `default` 产品。证书、密码、设备 UDID、签名配置和 `local.properties` 属于本机配置，不应提交仓库。
-4. 在 API 20 及以上的官方模拟器或鸿蒙手机上选择 `entry` 运行。正式验收仍需参考手机、飞行模式和异常恢复测试。
+4. 在 API 20 及以上的官方模拟器或鸿蒙手机上选择 `entry` 运行。第一次点击“完整录制”时由系统请求麦克风权限；允许后可暂停、继续并结束保存。模拟器录音依赖宿主机麦克风输入。正式验收仍需参考手机、飞行模式和异常恢复测试。
 
 命令行构建：设置 `HARMONY_HVIGORW` 为本机 DevEco 中真实存在的官方 `hvigorw`/`hvigorw.js`，运行 `npm run build:harmony`。使用 JS 包装器时，可设置 `HARMONY_NODE` 为 DevEco 配套的 Node 可执行文件。SDK、JDK、ohpm 和签名由 DevEco 配置；此脚本不替代 SDK 安装。缺少工具时退出码为 2。`modelVersion` 是工程开发态版本，不等于 `compatibleSdkVersion`，使用更新 IDE 时按官方同步提示处理开发态配置，最低兼容 API 20 不变。
 
@@ -26,6 +26,6 @@ pnpm run check
 
 ## 当前交付范围
 
-以 [实现进度](docs/implementation-status.md) 为准。尚未核验的设备能力返回明确未接入错误，不提供虚假录音、识别、保存或导出结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
+以 [实现进度](docs/implementation-status.md) 为准。完整录音已接入 Media Kit，但必须完成麦克风授权、真实录音和有效时长后才创建项目。导入、端侧识别、播放、局部重录与导出尚未接入，均返回明确错误，不提供虚假成功结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
 
 官方构建资料：[hvigorw 命令](https://developer.huawei.com/consumer/en/doc/harmonyos-guides/ide-hvigor-commandline)、[hvigor 配置](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-hvigor-set-options)。设备能力的核验状态见 [API 接入证据](docs/huawei-api-evidence.md)。

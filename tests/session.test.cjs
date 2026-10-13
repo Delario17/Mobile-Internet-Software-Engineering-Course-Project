@@ -38,5 +38,25 @@ const { Project, Segment } = require('../entry/src/main/ets/domain/Project.ts');
   assert.equal((await session.run('preview', '', () => {})).errorCode, 'TIMEOUT');
   global.setTimeout = originalTimeout;
   assert.equal(session.busy, false);
+  const recording = new EditorSession();
+  let recordingOperation = '';
+  recording.store = { async commit(candidate) { candidate.sequence++; return candidate; } };
+  AppServices.capabilities = {
+    async execute(request) {
+      recordingOperation = request.operation;
+      if (request.operation === 'recordStop') {
+        return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false,
+          project: new Project('recorded', 'recorded-source', 1000000) };
+      }
+      return { ok: true, errorCode: '', messageKey: `recording_${request.operation}`, recoverable: false };
+    }, async release() {}
+  };
+  assert.equal((await recording.run('recordStart', '', () => {})).ok, true);
+  assert.equal(recordingOperation, 'recordStart');
+  assert.equal((await recording.run('recordPause', '', () => {})).ok, true);
+  assert.equal((await recording.run('recordResume', '', () => {})).ok, true);
+  assert.equal((await recording.run('recordStop', '', () => {})).ok, true);
+  assert.equal(recording.project.sourceDurationUs, 1000000);
+  assert.equal(recording.project.sequence, 1);
   console.log('Session checks passed: export gate, target validation, cancellation, stale result, timeout.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

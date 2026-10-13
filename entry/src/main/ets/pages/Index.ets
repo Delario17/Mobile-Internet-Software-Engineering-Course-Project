@@ -34,6 +34,7 @@ struct Index {
   @State rightText: string = '';
   @State projects: Project[] = [];
   @State projectsLoaded: boolean = false;
+  @State recordingState: string = 'idle';
 
   aboutToAppear(): void { this.loadProjects(); }
 
@@ -97,6 +98,11 @@ struct Index {
     const result: CapabilityResult = await this.session.run(operation, this.script, (value: Progress) => {
       this.completed = value.completed; this.total = value.total;
     }, takeId);
+    if (result.ok && operation === 'recordStart') { this.recordingState = 'recording'; }
+    else if (result.ok && operation === 'recordPause') { this.recordingState = 'paused'; }
+    else if (result.ok && operation === 'recordResume') { this.recordingState = 'recording'; }
+    else if (result.ok && operation === 'recordStop') { this.recordingState = 'idle'; }
+    else if (!result.ok && operation.startsWith('record')) { this.recordingState = 'idle'; }
     this.busy = false; this.message = result.messageKey; this.refresh();
   }
 
@@ -157,6 +163,11 @@ struct Index {
         else if (this.message === 'nothing_to_undo') { Text($r('app.string.nothing_to_undo')) }
         else if (this.message === 'recovery_warning') { Text($r('app.string.recovery_warning')) }
         else if (this.message === 'saved') { Text($r('app.string.saved')) }
+        else if (this.message === 'recording_started') { Text($r('app.string.recording_started')) }
+        else if (this.message === 'recording_paused') { Text($r('app.string.recording_paused')) }
+        else if (this.message === 'recording_resumed') { Text($r('app.string.recording_resumed')) }
+        else if (this.message === 'microphone_denied') { Text($r('app.string.microphone_denied')) }
+        else if (this.message === 'recording_failed') { Text($r('app.string.recording_failed')) }
         else { Text($r('app.string.operation_failed')) }
         if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
           this.lastOperation !== 'auditionTake') {
@@ -229,8 +240,22 @@ struct Index {
         Text($r('app.string.app_name')).fontSize(28).fontWeight(FontWeight.Bold).fontColor('#167D65')
         if (!this.hasProject) {
           Text($r('app.string.home_title')).fontSize(24).fontWeight(FontWeight.Medium).width('100%')
-          Button($r('app.string.record_full')).width('100%').height(52).backgroundColor('#167D65')
-            .enabled(!this.busy).onClick(() => this.perform('record'))
+          if (this.recordingState === 'idle') {
+            Button($r('app.string.record_full')).width('100%').height(52).backgroundColor('#167D65')
+              .enabled(!this.busy).onClick(() => this.perform('recordStart'))
+          } else {
+            Text(this.recordingState === 'paused' ? $r('app.string.recording_paused') :
+              $r('app.string.recording_started')).fontWeight(FontWeight.Medium)
+            if (this.recordingState === 'recording') {
+              Button($r('app.string.pause_recording')).width('100%').height(52)
+                .enabled(!this.busy).onClick(() => this.perform('recordPause'))
+            } else {
+              Button($r('app.string.resume_recording')).width('100%').height(52)
+                .enabled(!this.busy).onClick(() => this.perform('recordResume'))
+            }
+            Button($r('app.string.finish_recording')).width('100%').height(52).backgroundColor('#B33A3A')
+              .enabled(!this.busy).onClick(() => this.perform('recordStop'))
+          }
           Button($r('app.string.import_audio')).width('100%').height(52).backgroundColor('#285B82')
             .enabled(!this.busy).onClick(() => this.perform('import'))
           Button($r('app.string.optional_inputs')).type(ButtonType.Normal).width('100%')

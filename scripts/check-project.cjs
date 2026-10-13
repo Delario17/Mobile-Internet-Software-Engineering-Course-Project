@@ -20,6 +20,10 @@ const moduleConfig = read('entry/src/main/module.json5').module;
 assert.equal(moduleConfig.mainElement, 'EntryAbility');
 assert(!(moduleConfig.requestPermissions || []).some(permission => permission.name === 'ohos.permission.INTERNET'),
   'Offline application must not request Internet permission');
+const microphone = (moduleConfig.requestPermissions || []).find(permission => permission.name === 'ohos.permission.MICROPHONE');
+assert(microphone, 'Recording must declare microphone permission');
+assert.equal(microphone.reason, '$string:microphone_reason');
+assert.deepEqual(microphone.usedScene, { abilities: ['EntryAbility'], when: 'inuse' });
 const tracked = execFileSync('git', ['ls-files', '-z'], { cwd: root, encoding: 'utf8' }).split('\0');
 assert(!tracked.some(file => /(^|\/)(local\.properties|certs)(\/|$)|\.(p12|pfx|cer|keystore)$/.test(file)),
   'Signing certificates and local SDK paths must not be tracked');

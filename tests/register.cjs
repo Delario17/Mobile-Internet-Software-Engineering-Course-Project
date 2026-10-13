@@ -5,13 +5,23 @@ const originalLoad = Module._load;
 // Test-only stubs: ArkTS kit modules exist only inside DevEco/HarmonyOS runtime.
 Module._load = function(request, parent, isMain) {
   if (request === '@kit.CoreFileKit') {
+    if (global.__arktsTestKits?.coreFileKit) { return global.__arktsTestKits.coreFileKit; }
     return { fileIo: {
-      OpenMode: { WRITE_ONLY: 1, CREATE: 64, TRUNC: 512 },
+      OpenMode: { READ_ONLY: 0, WRITE_ONLY: 1, CREATE: 64, TRUNC: 512 },
       readTextSync() { throw { code: 13900002 }; },
       mkdirSync() {}, openSync() { throw new Error('TEST_DEVICE_FILE_PORT'); },
       writeSync() { throw new Error('TEST_DEVICE_FILE_PORT'); }, fdatasyncSync() {}, closeSync() {},
-      renameSync() {}, listFileSync() { return []; }
+      renameSync() {}, listFileSync() { return []; }, statSync() { return { size: 0 }; },
+      unlinkSync() {}, rmdirSync() {}
     } };
+  }
+  if (request === '@kit.MediaKit') {
+    if (global.__arktsTestKits?.mediaKit) { return global.__arktsTestKits.mediaKit; }
+    return { media: { createAVRecorder() { throw new Error('TEST_MEDIA_PORT'); } } };
+  }
+  if (request === '@kit.AbilityKit') {
+    if (global.__arktsTestKits?.abilityKit) { return global.__arktsTestKits.abilityKit; }
+    return { abilityAccessCtrl: { createAtManager() { throw new Error('TEST_PERMISSION_PORT'); } } };
   }
   if (request === '@kit.BasicServicesKit') { return { BusinessError: class BusinessError extends Error {} }; }
   return originalLoad.call(this, request, parent, isMain);

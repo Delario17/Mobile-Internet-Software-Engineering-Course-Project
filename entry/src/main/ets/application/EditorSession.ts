@@ -35,7 +35,7 @@ export class EditorSession {
     if (operation === 'export' && this.project && pendingReview(this.project).length > 0) {
       return this.failure('REVIEW_REQUIRED', 'review_required');
     }
-    if (operation !== 'record' && operation !== 'import' && !this.project) {
+    if (!['record', 'recordStart', 'recordPause', 'recordResume', 'recordStop', 'import'].includes(operation) && !this.project) {
       return this.failure('PROJECT_REQUIRED', 'project_required');
     }
     if (['retake', 'auditionSource', 'auditionTake'].includes(operation) && (!this.project || !this.project.segments.some((segment) =>
@@ -79,7 +79,7 @@ export class EditorSession {
         return this.failure('CANCELLED', 'operation_cancelled');
       }
       if (result.ok && result.project) {
-        if (!['record', 'import', 'recognize', 'retake'].includes(operation)) {
+        if (!['record', 'recordStop', 'import', 'recognize', 'retake'].includes(operation)) {
           return this.failure('UNEXPECTED_PROJECT_RESULT', 'operation_failed');
         }
         const candidate: Project = copyProject(result.project);
