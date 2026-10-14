@@ -19,6 +19,14 @@ export class HuaweiProjectFiles implements ProjectFiles {
     return separator <= 0 ? this.root : path.slice(0, separator);
   }
 
+  private ensureParent(path: string): void {
+    try { fs.mkdirSync(this.parent(path), true); }
+    catch (error) {
+      const failure: BusinessError = error as BusinessError;
+      if (failure.code !== 13900015) { throw error; }
+    }
+  }
+
   async read(relative: string): Promise<string | undefined> {
     try { return fs.readTextSync(this.path(relative)); }
     catch (error) {
@@ -30,7 +38,7 @@ export class HuaweiProjectFiles implements ProjectFiles {
 
   async write(relative: string, text: string): Promise<void> {
     const path: string = this.path(relative);
-    fs.mkdirSync(this.parent(path), true);
+    this.ensureParent(path);
     const file = fs.openSync(path, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
     try {
       const bytes: number = fs.writeSync(file.fd, text);
@@ -42,7 +50,7 @@ export class HuaweiProjectFiles implements ProjectFiles {
   async rename(from: string, to: string): Promise<void> {
     const source: string = this.path(from);
     const destination: string = this.path(to);
-    fs.mkdirSync(this.parent(destination), true);
+    this.ensureParent(destination);
     fs.renameSync(source, destination);
   }
 

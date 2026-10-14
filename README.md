@@ -26,6 +26,6 @@ pnpm run check
 
 ## 当前交付范围
 
-以 [实现进度](docs/implementation-status.md) 为准。完整录音已接入 Media Kit，但必须完成麦克风授权、真实录音和有效时长后才创建项目。导入、端侧识别、播放、局部重录与导出尚未接入，均返回明确错误，不提供虚假成功结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
+以 [实现进度](docs/implementation-status.md) 为准。完整录音已接入 Media Kit，并在 API 20 模拟器生成真实 M4A、读取有效时长；项目保存的父目录复用故障已修复，完整保存和重启恢复还需再录一次确认。导入、端侧识别、播放、局部重录与导出尚未接入，均返回明确错误，不提供虚假成功结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
 
 官方构建资料：[hvigorw 命令](https://developer.huawei.com/consumer/en/doc/harmonyos-guides/ide-hvigor-commandline)、[hvigor 配置](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-hvigor-set-options)。设备能力的核验状态见 [API 接入证据](docs/huawei-api-evidence.md)。
