@@ -35,6 +35,7 @@ struct Index {
   @State projects: Project[] = [];
   @State projectsLoaded: boolean = false;
   @State recordingState: string = 'idle';
+  @State pendingDeleteId: string = '';
 
   aboutToAppear(): void { this.loadProjects(); }
 
@@ -54,6 +55,24 @@ struct Index {
     this.busy = true; this.lastOperation = '';
     const result: CapabilityResult = await this.session.openProject(id);
     this.busy = false; this.message = result.messageKey; this.reviewMode = false; this.refresh();
+  }
+
+  requestDelete(id: string): void {
+    if (!this.busy) { this.pendingDeleteId = id; this.message = ''; }
+  }
+
+  async deleteProject(id: string): Promise<void> {
+    if (this.busy) { return; }
+    this.busy = true; this.message = '';
+    try {
+      await AppServices.projects.deleteProject(id);
+      this.pendingDeleteId = '';
+      this.projects = await AppServices.projects.listProjects();
+      this.projectsLoaded = true;
+      this.message = 'project_deleted';
+    } catch {
+      this.message = 'project_delete_failed';
+    } finally { this.busy = false; }
   }
 
   aboutToDisappear(): void { this.session.close(); }
@@ -163,6 +182,8 @@ struct Index {
         else if (this.message === 'nothing_to_undo') { Text($r('app.string.nothing_to_undo')) }
         else if (this.message === 'recovery_warning') { Text($r('app.string.recovery_warning')) }
         else if (this.message === 'saved') { Text($r('app.string.saved')) }
+        else if (this.message === 'project_deleted') { Text($r('app.string.project_deleted')) }
+        else if (this.message === 'project_delete_failed') { Text($r('app.string.project_delete_failed')) }
         else if (this.message === 'recording_started') { Text($r('app.string.recording_started')) }
         else if (this.message === 'recording_paused') { Text($r('app.string.recording_paused')) }
         else if (this.message === 'recording_resumed') { Text($r('app.string.recording_resumed')) }
@@ -270,8 +291,22 @@ struct Index {
             Text($r('app.string.empty_projects')).fontColor('#6C746F').width('100%')
           }
           ForEach(this.projects, (project: Project) => {
-            Button($r('app.string.open_project', new Date(project.updatedAtMs).toLocaleString(), project.sourceDurationUs / 1000000)).height(52)
-              .enabled(!this.busy).onClick(() => this.openProject(project.id))
+            Column({ space: 8 }) {
+              Button($r('app.string.open_project', new Date(project.updatedAtMs).toLocaleString(), project.sourceDurationUs / 1000000)).height(52)
+                .enabled(!this.busy).onClick(() => this.openProject(project.id))
+              if (this.pendingDeleteId === project.id) {
+                Text($r('app.string.delete_project_confirm')).width('100%').fontColor('#8A2E2E')
+                Row({ space: 8 }) {
+                  Button($r('app.string.confirm_delete')).height(44).enabled(!this.busy)
+                    .onClick(() => this.deleteProject(project.id))
+                  Button($r('app.string.cancel_delete')).height(44).enabled(!this.busy)
+                    .onClick(() => this.pendingDeleteId = '')
+                }
+              } else {
+                Button($r('app.string.delete_project')).height(44).enabled(!this.busy)
+                  .onClick(() => this.requestDelete(project.id))
+              }
+            }.width('100%').padding(12).backgroundColor('#FFFFFF')
           }, (project: Project) => project.id)
           Button($r('app.string.restore')).height(48).enabled(!this.busy).onClick(() => this.loadProjects())
         } else {

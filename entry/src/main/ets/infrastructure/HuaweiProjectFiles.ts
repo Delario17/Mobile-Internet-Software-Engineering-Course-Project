@@ -62,4 +62,13 @@ export class HuaweiProjectFiles implements ProjectFiles {
       throw error;
     }
   }
+
+  async remove(relative: string): Promise<void> {
+    const path: string = this.path(relative);
+    try { fs.rmdirSync(path); }
+    catch (error) {
+      const failure: BusinessError = error as BusinessError;
+      if (failure.code !== 13900002) { throw error; }
+    }
+  }
 }

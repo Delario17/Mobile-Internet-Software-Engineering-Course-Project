@@ -23,9 +23,36 @@ async function fixture(t) {
       await fs.rename(path.join(directory, from), path.join(directory, to)); },
     async list(folder) { try { return await fs.readdir(path.join(directory, folder)); }
       catch (error) { if (error.code === 'ENOENT') return []; throw error; } }
+    ,async remove(folder) { try { await fs.rm(path.join(directory, folder), { recursive: true, force: false }); }
+      catch (error) { if (error.code !== 'ENOENT') throw error; } }
   };
   return { directory, files, store: new ProjectStore(files) };
 }
+
+test('deleting a project removes its source, revisions, receipts and staging data', async t => {
+  const { store, files, directory } = await fixture(t);
+  await store.commit(new Project('p', 'source', 10000), 0);
+  await files.write('p/assets/source.m4a', 'audio');
+  await files.write('p/staging/orphan', 'temporary');
+  await store.deleteProject('p');
+  assert.equal(await files.read('p/HEAD'), undefined);
+  assert.deepEqual(await files.list(''), []);
+  await assert.rejects(fs.stat(path.join(directory, 'p')), /ENOENT/);
+});
+
+test('deleting a missing project is idempotent but invalid ids are rejected', async t => {
+  const { store } = await fixture(t);
+  await store.deleteProject('missing');
+  await assert.rejects(store.deleteProject('../escape'), /INVALID_PROJECT/);
+});
+
+test('delete failure leaves the project available', async t => {
+  const { store, files } = await fixture(t);
+  await store.commit(new Project('p', 'source', 10000), 0);
+  files.remove = async () => { throw new Error('PERMISSION_DENIED'); };
+  await assert.rejects(store.deleteProject('p'), /PERMISSION_DENIED/);
+  assert.equal((await store.restore('p')).sequence, 1);
+});
 
 test('revisions append, conflict fails, restart restores last committed edits', async t => {
   const { store, files } = await fixture(t);

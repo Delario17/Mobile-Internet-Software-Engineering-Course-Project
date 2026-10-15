@@ -7,6 +7,7 @@ export interface ProjectFiles {
   // Ensure destination parent exists; replace atomically within the same private filesystem.
   rename(from: string, to: string): Promise<void>;
   list(folder: string): Promise<string[]>;
+  remove(path: string): Promise<void>;
 }
 
 export interface ProjectStorePort {
@@ -117,6 +118,13 @@ export class ProjectStore implements ProjectStorePort {
     const project: Project | undefined = await this.load(id);
     if (!project) { throw new Error('PROJECT_NOT_FOUND'); }
     return project;
+  }
+
+  deleteProject(id: string): Promise<void> {
+    if (!validId(id)) { return Promise.reject(new Error('INVALID_PROJECT')); }
+    const operation: Promise<void> = this.queue.then(() => this.files.remove(id));
+    this.queue = operation.then(() => {}, () => {});
+    return operation;
   }
 
   private async fromPointer(id: string, text: string | undefined): Promise<Project | undefined> {

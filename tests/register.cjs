@@ -12,7 +12,7 @@ Module._load = function(request, parent, isMain) {
       mkdirSync() {}, openSync() { throw new Error('TEST_DEVICE_FILE_PORT'); },
       writeSync() { throw new Error('TEST_DEVICE_FILE_PORT'); }, fdatasyncSync() {}, closeSync() {},
       renameSync() {}, listFileSync() { return []; }, statSync() { return { size: 0 }; },
-      unlinkSync() {}, rmdirSync() {}
+      unlinkSync() {}, rmdirSync() {},
     } };
   }
   if (request === '@kit.MediaKit') {
