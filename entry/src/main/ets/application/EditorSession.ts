@@ -45,6 +45,7 @@ export class EditorSession {
     const generation: number = ++this.generation;
     const targetId: string = this.selectedSegmentId;
     let timer: number = 0;
+    let commitSucceeded: boolean = false;
     try {
       const interrupted: Promise<CapabilityResult> = new Promise((resolve) => {
         this.abort = () => resolve(this.failure('CANCELLED', 'operation_cancelled'));
@@ -87,12 +88,16 @@ export class EditorSession {
         const createsAsset: boolean = ['record', 'recordStop', 'import', 'retake'].includes(operation);
         clearTimeout(timer); this.abort = undefined; this.committing = true;
         const saved: Project = await this.store.commit(candidate, this.project ? this.project.sequence : 0);
+        commitSucceeded = true;
+        // The HEAD commit is durable. Never discard an asset after this point.
+        this.project = saved;
+        let finalizeWarning: boolean = false;
         if (createsAsset && AppServices.capabilities.finalizePendingAsset) {
-          await AppServices.capabilities.finalizePendingAsset();
+          try { await AppServices.capabilities.finalizePendingAsset(); } catch { finalizeWarning = true; }
         }
         if (previous && ['recognize', 'retake'].includes(operation)) { this.history.push(copyProject(previous)); }
         else { this.history = []; }
-        this.project = saved;
+        if (finalizeWarning) { saved.recoveryWarning = true; }
         if (!saved.segments.some((s: Segment) => s.id === targetId)) { this.selectedSegmentId = ''; }
         this.invalidateAudition();
         return { ok: true, errorCode: '', messageKey: saved.recoveryWarning ? 'recovery_warning' : 'saved',
@@ -103,7 +108,7 @@ export class EditorSession {
       }
       return result;
     } catch {
-      if (this.committing && ['record', 'recordStop', 'import', 'retake'].includes(operation) &&
+      if (this.committing && !commitSucceeded && ['record', 'recordStop', 'import', 'retake'].includes(operation) &&
         AppServices.capabilities.discardPendingAsset) {
         try { await AppServices.capabilities.discardPendingAsset(); } catch { }
       }

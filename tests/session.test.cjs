@@ -77,5 +77,25 @@ const { Project, Segment } = require('../entry/src/main/ets/domain/Project.ts');
   assert.equal(failedSave.errorCode, 'SAVE_FAILED');
   assert.equal(discarded, 1);
   assert.equal(failedRecording.project, undefined);
+  const finalizeFailure = new EditorSession();
+  let finalizedDiscarded = 0;
+  finalizeFailure.store = { async commit(candidate) { candidate.sequence++; return candidate; } };
+  AppServices.capabilities = {
+    async execute(request) {
+      if (request.operation === 'recordStop') {
+        return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false,
+          project: new Project('committed', 'committed-source', 1000000) };
+      }
+      return { ok: true, errorCode: '', messageKey: 'recording_started', recoverable: false };
+    },
+    async finalizePendingAsset() { throw new Error('FINALIZE_FAILED'); },
+    async discardPendingAsset() { finalizedDiscarded++; },
+    async release() {}
+  };
+  const committedDespiteFinalizeFailure = await finalizeFailure.run('recordStop', '', () => {});
+  assert.equal(committedDespiteFinalizeFailure.ok, true);
+  assert.equal(committedDespiteFinalizeFailure.messageKey, 'recovery_warning');
+  assert.equal(finalizedDiscarded, 0);
+  assert.equal(finalizeFailure.project.id, 'committed');
   console.log('Session checks passed: export gate, target validation, cancellation, stale result, timeout.');
 })().catch(error => { console.error(error); process.exitCode = 1; });
