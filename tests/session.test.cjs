@@ -58,5 +58,24 @@ const { Project, Segment } = require('../entry/src/main/ets/domain/Project.ts');
   assert.equal((await recording.run('recordStop', '', () => {})).ok, true);
   assert.equal(recording.project.sourceDurationUs, 1000000);
   assert.equal(recording.project.sequence, 1);
+  const failedRecording = new EditorSession();
+  let discarded = 0;
+  failedRecording.store = { async commit() { throw new Error('DISK_FULL'); } };
+  AppServices.capabilities = {
+    async execute(request) {
+      if (request.operation === 'recordStop') {
+        return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false,
+          project: new Project('orphaned', 'orphaned-source', 1000000) };
+      }
+      return { ok: true, errorCode: '', messageKey: 'recording_started', recoverable: false };
+    },
+    async discardPendingAsset() { discarded++; },
+    async finalizePendingAsset() {},
+    async release() {}
+  };
+  const failedSave = await failedRecording.run('recordStop', '', () => {});
+  assert.equal(failedSave.errorCode, 'SAVE_FAILED');
+  assert.equal(discarded, 1);
+  assert.equal(failedRecording.project, undefined);
   console.log('Session checks passed: export gate, target validation, cancellation, stale result, timeout.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

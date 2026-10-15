@@ -23,5 +23,9 @@ export interface CapabilityResult {
 export interface CapabilityPort {
   execute(request: CapabilityRequest, cancellation: Cancellation,
     progress: (value: Progress) => void): Promise<CapabilityResult>;
+  /** Finalize an asset only after its owning project has been durably committed. */
+  finalizePendingAsset?(): Promise<void>;
+  /** Remove an asset created by a failed project commit. */
+  discardPendingAsset?(): Promise<void>;
   release(): Promise<void>;
 }

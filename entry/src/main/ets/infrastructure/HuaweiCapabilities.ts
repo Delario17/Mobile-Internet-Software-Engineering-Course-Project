@@ -149,12 +149,18 @@ export class HuaweiCapabilities implements CapabilityPort {
       }
     }
     if (cancellation.cancelled) {
-      this.discardSourceAsset(); this.clearRecordingIdentity();
+      await this.discardPendingAsset();
       return this.failure('CANCELLED', 'operation_cancelled');
     }
     const project: Project = new Project(this.projectId, this.sourceAssetId, durationMs * 1000);
-    this.clearRecordingIdentity();
     return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false, project: project };
+  }
+
+  async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); }
+
+  async discardPendingAsset(): Promise<void> {
+    this.discardSourceAsset();
+    this.clearRecordingIdentity();
   }
 
   async release(): Promise<void> { await this.releaseRecorder(); }
@@ -171,13 +177,17 @@ export class HuaweiCapabilities implements CapabilityPort {
       try { fs.closeSync(this.output); } catch { }
       this.output = undefined;
     }
-    this.discardSourceAsset();
+    await this.discardPendingAsset();
     this.clearRecordingIdentity();
   }
 
   private discardSourceAsset(): void {
     if (this.sourcePath !== '') {
       try { fs.unlinkSync(this.sourcePath); } catch { }
+      const assetsDir: string = this.sourcePath.substring(0, this.sourcePath.lastIndexOf('/'));
+      const projectDir: string = assetsDir.substring(0, assetsDir.lastIndexOf('/'));
+      try { fs.rmdirSync(assetsDir); } catch { }
+      try { fs.rmdirSync(projectDir); } catch { }
     }
   }
 

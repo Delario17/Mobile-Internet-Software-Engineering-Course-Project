@@ -84,8 +84,12 @@ export class EditorSession {
         }
         const candidate: Project = copyProject(result.project);
         const previous: Project | undefined = this.project;
+        const createsAsset: boolean = ['record', 'recordStop', 'import', 'retake'].includes(operation);
         clearTimeout(timer); this.abort = undefined; this.committing = true;
         const saved: Project = await this.store.commit(candidate, this.project ? this.project.sequence : 0);
+        if (createsAsset && AppServices.capabilities.finalizePendingAsset) {
+          await AppServices.capabilities.finalizePendingAsset();
+        }
         if (previous && ['recognize', 'retake'].includes(operation)) { this.history.push(copyProject(previous)); }
         else { this.history = []; }
         this.project = saved;
@@ -99,6 +103,10 @@ export class EditorSession {
       }
       return result;
     } catch {
+      if (this.committing && ['record', 'recordStop', 'import', 'retake'].includes(operation) &&
+        AppServices.capabilities.discardPendingAsset) {
+        try { await AppServices.capabilities.discardPendingAsset(); } catch { }
+      }
       return this.failure(this.committing ? 'SAVE_FAILED' : 'OPERATION_FAILED', this.committing ? 'save_failed' : 'operation_failed');
     } finally {
       clearTimeout(timer);
