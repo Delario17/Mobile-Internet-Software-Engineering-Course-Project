@@ -13,6 +13,10 @@ declare module '@kit.CoreFileKit' {
     statSync(file: number): { size: number };
     unlinkSync(path: string): void;
     rmdirSync(path: string): void;
+    copyFile(src: string | number, dest: string | number): Promise<void>;
+  };
+  export const picker: {
+    AudioViewPicker: new (context: object) => { select(options?: object): Promise<string[]> };
   };
 }
 declare module '@kit.MediaKit' {

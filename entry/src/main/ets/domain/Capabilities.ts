@@ -12,6 +12,7 @@ export interface CapabilityRequest {
   project: Project | undefined;
   manifest: RenderPiece[];
   optionalScript: string;
+  importUri?: string;
 }
 export interface CapabilityResult {
   ok: boolean;

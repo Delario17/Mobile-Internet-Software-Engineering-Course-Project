@@ -1,6 +1,6 @@
 import { CapabilityPort, CapabilityRequest, CapabilityResult, Cancellation, Progress } from '../domain/Capabilities';
 import { Project } from '../domain/Project';
-import { fileIo as fs } from '@kit.CoreFileKit';
+import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { media } from '@kit.MediaKit';
 import { abilityAccessCtrl, Context, PermissionRequestResult, Permissions } from '@kit.AbilityKit';
 
@@ -28,9 +28,11 @@ export class HuaweiCapabilities implements CapabilityPort {
       if (request.operation === 'recordPause') { return await this.pauseRecording(cancellation); }
       if (request.operation === 'recordResume') { return await this.resumeRecording(cancellation); }
       if (request.operation === 'recordStop') { return await this.stopRecording(cancellation); }
+      if (request.operation === 'import') { return await this.importAudio(cancellation); }
     } catch {
       await this.releaseRecorder();
-      return this.failure('RECORDING_FAILED', 'recording_failed');
+      return this.failure(request.operation === 'import' ? 'IMPORT_FAILED' : 'RECORDING_FAILED',
+        request.operation === 'import' ? 'import_failed' : 'recording_failed');
     }
     // TODO(HUAWEI_API): 按 request.operation 接入官方录音、音频选择/校验、离线 ASR/时间对齐、
     // PCM 播放/编码/文档导出。项目文件调用集中在 HuaweiProjectFiles。
@@ -154,6 +156,54 @@ export class HuaweiCapabilities implements CapabilityPort {
     }
     const project: Project = new Project(this.projectId, this.sourceAssetId, durationMs * 1000);
     return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false, project: project };
+  }
+
+  private async importAudio(cancellation: Cancellation): Promise<CapabilityResult> {
+    if (this.recorder || this.starting || !this.context || this.filesDir === '') {
+      return this.failure('IMPORT_STATE', 'import_failed');
+    }
+    if (cancellation.cancelled) { return this.failure('CANCELLED', 'operation_cancelled'); }
+    const audioPicker = new picker.AudioViewPicker(this.context);
+    const uris: Array<string> = await audioPicker.select({ maxSelectNumber: 1 });
+    if (cancellation.cancelled) { return this.failure('CANCELLED', 'operation_cancelled'); }
+    if (uris.length !== 1 || typeof uris[0] !== 'string' || uris[0] === '') {
+      return this.failure('IMPORT_CANCELLED', 'operation_cancelled');
+    }
+    const token: string = Date.now().toString();
+    this.projectId = `p-${token}`;
+    this.sourceAssetId = `source-${token}`;
+    const assetDir: string = `${this.filesDir}/projects/${this.projectId}/assets`;
+    fs.mkdirSync(assetDir, true);
+    this.sourcePath = `${assetDir}/${this.sourceAssetId}.audio`;
+    try {
+      await fs.copyFile(uris[0], this.sourcePath);
+      if (cancellation.cancelled) {
+        await this.discardPendingAsset();
+        return this.failure('CANCELLED', 'operation_cancelled');
+      }
+      const durationMs: number = await this.readDurationMs(this.sourcePath);
+      const project: Project = new Project(this.projectId, this.sourceAssetId, durationMs * 1000);
+      return { ok: true, errorCode: '', messageKey: 'imported', recoverable: false, project: project };
+    } catch {
+      await this.discardPendingAsset();
+      return this.failure('IMPORT_FAILED', 'import_failed');
+    }
+  }
+
+  private async readDurationMs(path: string): Promise<number> {
+    const input: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
+    let extractor: media.AVMetadataExtractor | undefined;
+    try {
+      const readyExtractor: media.AVMetadataExtractor = await media.createAVMetadataExtractor();
+      extractor = readyExtractor;
+      readyExtractor.fdSrc = { fd: input.fd, offset: 0, length: fs.statSync(input.fd).size };
+      const metadata: media.AVMetadata = await readyExtractor.fetchMetadata();
+      const durationMs: number = metadata.duration ? Number(metadata.duration) : 0;
+      if (!Number.isSafeInteger(durationMs) || durationMs <= 0) { throw new Error('INVALID_AUDIO'); }
+      return durationMs;
+    } finally {
+      try { if (extractor) { await extractor.release(); } } finally { fs.closeSync(input); }
+    }
   }
 
   async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); }

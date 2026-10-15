@@ -189,6 +189,8 @@ struct Index {
         else if (this.message === 'recording_resumed') { Text($r('app.string.recording_resumed')) }
         else if (this.message === 'microphone_denied') { Text($r('app.string.microphone_denied')) }
         else if (this.message === 'recording_failed') { Text($r('app.string.recording_failed')) }
+        else if (this.message === 'import_failed') { Text($r('app.string.import_failed')) }
+        else if (this.message === 'imported') { Text($r('app.string.imported')) }
         else { Text($r('app.string.operation_failed')) }
         if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
           this.lastOperation !== 'auditionTake') {

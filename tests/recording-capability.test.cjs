@@ -7,6 +7,8 @@ let recorderCreates = 0;
 const closed = [];
 const unlinked = [];
 let nextFd = 1;
+let pickerUris = ['file://media/audio.m4a'];
+let copied = [];
 
 function recorder() {
   return {
@@ -27,11 +29,15 @@ const fileIo = {
   closeSync(file) { closed.push(file.fd); },
   statSync() { return { size: 12 }; },
   unlinkSync(path) { unlinked.push(path); },
+  async copyFile(src, dest) { copied.push({ src, dest }); },
   rmdirSync() {}
 };
 
 global.__arktsTestKits = {
-  coreFileKit: { fileIo },
+  coreFileKit: { fileIo, picker: { AudioViewPicker: class {
+    constructor() {}
+    async select() { return pickerUris; }
+  } } },
   mediaKit: { media: {
     AudioSourceType: { AUDIO_SOURCE_TYPE_MIC: 1 },
     CodecMimeType: { AUDIO_AAC: 'aac' },
@@ -86,4 +92,27 @@ test('metadata setup failure closes every descriptor and removes the uncommitted
   assert(closed.includes(inputFd));
   assert.equal(unlinked.length, 1);
   assert.match(unlinked[0], /\/projects\/p-[0-9]+\/assets\/source-[0-9]+\.m4a$/);
+});
+
+test('import cancellation does not copy an asset or publish a project', async () => {
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const cancellation = new Cancellation(); cancellation.cancel();
+  const result = await capabilities.execute(request('import'), cancellation, () => {});
+  assert.equal(result.errorCode, 'CANCELLED');
+  assert.equal(copied.length, 0);
+});
+
+test('import copies the selected URI and requires a real positive duration', async () => {
+  global.__arktsTestKits.mediaKit.media.createAVMetadataExtractor = async () => ({
+    fdSrc: undefined,
+    async fetchMetadata() { return { duration: '2400' }; },
+    async release() {}
+  });
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const result = await capabilities.execute(request('import'), new Cancellation(), () => {});
+  assert.equal(result.ok, true);
+  assert.equal(result.project.sourceDurationUs, 2400000);
+  assert.equal(copied.length, 1);
+  assert.match(copied[0].src, /^file:\/\//);
+  assert.match(copied[0].dest, /\/projects\/p-[0-9]+\/assets\/source-[0-9]+\.audio$/);
 });

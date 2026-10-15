@@ -38,9 +38,9 @@
 - Modify: `entry/src/main/ets/pages/Index.ets`
 - Test: `tests/recording-capability.test.cjs`
 
-- [ ] 先为导入取消、格式错误、无音轨和有效资产复制写失败测试。
-- [ ] 用官方 File Picker 和 Core File Kit 复制到私有资产目录；无法在 API 20 确认的调用保留 TODO。
-- [ ] 保存真实时长和不可变源资产引用。
+- [x] 先为导入取消、格式错误、无音轨和有效资产复制写失败测试。
+- [x] 用 API 20 `AudioViewPicker` 和 Core File Kit 复制到私有资产目录；未确认的格式能力保留明确限制。
+- [x] 保存真实时长和不可变源资产引用；提交失败回滚待提交资产。
 
 ### Task 3: 真实播放适配边界
 
@@ -95,4 +95,3 @@
 - [ ] 更新实现进度、API 证据和 README。
 - [ ] 运行 20+ 测试、类型检查、配置检查、原生构建安装和设备流程。
 - [ ] 提交正文列需求、API、验证、限制并推送 main。
-
