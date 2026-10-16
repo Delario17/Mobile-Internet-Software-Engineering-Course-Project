@@ -191,8 +191,11 @@ struct Index {
         else if (this.message === 'recording_failed') { Text($r('app.string.recording_failed')) }
         else if (this.message === 'import_failed') { Text($r('app.string.import_failed')) }
         else if (this.message === 'imported') { Text($r('app.string.imported')) }
+        else if (this.message === 'playback_failed') { Text($r('app.string.playback_failed')) }
+        else if (this.message === 'audition_completed') { Text($r('app.string.audition_completed')) }
         else { Text($r('app.string.operation_failed')) }
         if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
+          this.message !== 'audition_completed' &&
           this.lastOperation !== 'auditionTake') {
           Button($r('app.string.retry')).enabled(!this.busy).onClick(() => this.perform(this.lastOperation))
         }

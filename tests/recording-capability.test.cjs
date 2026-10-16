@@ -9,6 +9,7 @@ const unlinked = [];
 let nextFd = 1;
 let pickerUris = ['file://media/audio.m4a'];
 let copied = [];
+let playerInstance;
 
 function recorder() {
   return {
@@ -28,6 +29,7 @@ const fileIo = {
   openSync() { return { fd: nextFd++ }; },
   closeSync(file) { closed.push(file.fd); },
   statSync() { return { size: 12 }; },
+  listFileSync() { return ['source-play.m4a']; },
   unlinkSync(path) { unlinked.push(path); },
   async copyFile(src, dest) { copied.push({ src, dest }); },
   rmdirSync() {}
@@ -43,7 +45,20 @@ global.__arktsTestKits = {
     CodecMimeType: { AUDIO_AAC: 'aac' },
     ContainerFormatType: { CFT_MPEG_4A: 'm4a' },
     async createAVRecorder() { recorderCreates++; return recorder(); },
-    async createAVMetadataExtractor() { throw new Error('METADATA_CREATE_FAILED'); }
+    async createAVMetadataExtractor() { throw new Error('METADATA_CREATE_FAILED'); },
+    async createAVPlayer() {
+      playerInstance = {
+        state: 'idle',
+        callbacks: {},
+        on(type, callback) { this.callbacks[type] = callback; },
+        off() {},
+        async prepare() { this.state = 'prepared'; },
+        async play() { this.state = 'playing'; },
+        async stop() { this.state = 'stopped'; },
+        async release() { this.state = 'released'; }
+      };
+      return playerInstance;
+    }
   } },
   abilityKit: { abilityAccessCtrl: { createAtManager() { return {
     requestPermissionsFromUser() {
@@ -115,4 +130,36 @@ test('import copies the selected URI and requires a real positive duration', asy
   assert.equal(copied.length, 1);
   assert.match(copied[0].src, /^file:\/\//);
   assert.match(copied[0].dest, /\/projects\/p-[0-9]+\/assets\/source-[0-9]+\.audio$/);
+});
+
+test('source audition waits for AVPlayer completed state before succeeding', async () => {
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const project = new (require('../entry/src/main/ets/domain/Project.ts').Project)('p', 'source-play', 2400000);
+  const pending = capabilities.execute({ operation: 'auditionSource', selectedSegmentId: 's', auditionTakeId: '',
+    project, manifest: [{ assetId: 'source-play', startUs: 0, endUs: 1000000, outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
+  await Promise.resolve();
+  await Promise.resolve();
+  assert.equal(playerInstance.state, 'playing');
+  let finished = false;
+  pending.then(() => { finished = true; });
+  await Promise.resolve();
+  assert.equal(finished, false);
+  playerInstance.callbacks.timeUpdate(1000);
+  const result = await pending;
+  assert.equal(result.ok, true);
+  assert.equal(result.messageKey, 'audition_completed');
+  assert.equal(playerInstance.state, 'released');
+});
+
+test('source audition reports player errors instead of success', async () => {
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const project = new (require('../entry/src/main/ets/domain/Project.ts').Project)('p', 'source-play', 2400000);
+  const pending = capabilities.execute({ operation: 'auditionSource', selectedSegmentId: 's', auditionTakeId: '',
+    project, manifest: [{ assetId: 'source-play', startUs: 0, endUs: 1000000, outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
+  await Promise.resolve();
+  playerInstance.callbacks.error(new Error('DECODER_FAILED'));
+  const result = await pending;
+  assert.equal(result.ok, false);
+  assert.equal(result.errorCode, 'PLAYBACK_FAILED');
+  assert.equal(playerInstance.state, 'released');
 });

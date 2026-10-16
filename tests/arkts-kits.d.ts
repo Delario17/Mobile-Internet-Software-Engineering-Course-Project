@@ -36,6 +36,17 @@ declare module '@kit.MediaKit' {
       release(): Promise<void>;
     }
     interface AVMetadata { duration?: string; }
+    interface AVPlayer {
+      state: string;
+      fdSrc?: object;
+      on(type: string, callback: (...args: any[]) => void): void;
+      off(type?: string, callback?: (...args: any[]) => void): void;
+      prepare(): Promise<void>;
+      play(): Promise<void>;
+      seek(timeMs: number): void;
+      stop(): Promise<void>;
+      release(): Promise<void>;
+    }
   }
   export const media: any;
 }

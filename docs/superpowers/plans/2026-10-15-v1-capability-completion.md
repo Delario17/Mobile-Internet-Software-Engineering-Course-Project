@@ -50,9 +50,9 @@
 - Modify: `entry/src/main/ets/pages/Index.ets`
 - Test: `tests/session.test.cjs`
 
-- [ ] 测试播放成功必须等待完成事件，启动失败和取消不得报告成功。
-- [ ] 按 API 20 Media Kit 公开接口接入；接口不完整时返回能力不可用。
-- [ ] 播放状态与当前句段选择保持一致。
+- [x] 测试播放成功必须等待完成事件，启动失败和取消不得报告成功。
+- [x] 按 API 20 Media Kit 公开接口接入 `AVPlayer` 私有 FD 播放。
+- [x] 播放状态与当前句段选择保持一致；播放失败不改变项目或审核状态。
 
 ### Task 4: 端侧识别适配层
 

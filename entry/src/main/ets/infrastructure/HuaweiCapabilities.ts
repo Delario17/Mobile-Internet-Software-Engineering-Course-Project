@@ -14,6 +14,8 @@ export class HuaweiCapabilities implements CapabilityPort {
   private sourceAssetId: string = '';
   private sourcePath: string = '';
   private starting: boolean = false;
+  private player: media.AVPlayer | undefined = undefined;
+  private playerInput: fs.File | undefined = undefined;
 
   constructor(context?: Context, filesDir: string = '') {
     this.context = context; this.filesDir = filesDir;
@@ -29,8 +31,12 @@ export class HuaweiCapabilities implements CapabilityPort {
       if (request.operation === 'recordResume') { return await this.resumeRecording(cancellation); }
       if (request.operation === 'recordStop') { return await this.stopRecording(cancellation); }
       if (request.operation === 'import') { return await this.importAudio(cancellation); }
+      if (request.operation === 'auditionSource' || request.operation === 'auditionTake') {
+        return await this.audition(request, cancellation);
+      }
     } catch {
       await this.releaseRecorder();
+      await this.releasePlayback();
       return this.failure(request.operation === 'import' ? 'IMPORT_FAILED' : 'RECORDING_FAILED',
         request.operation === 'import' ? 'import_failed' : 'recording_failed');
     }
@@ -206,6 +212,90 @@ export class HuaweiCapabilities implements CapabilityPort {
     }
   }
 
+  private assetPath(projectId: string, assetId: string): string | undefined {
+    if (!/^[A-Za-z0-9_-]{1,128}$/.test(projectId) || !/^[A-Za-z0-9_-]{1,128}$/.test(assetId)) {
+      return undefined;
+    }
+    const folder: string = `${this.filesDir}/projects/${projectId}/assets`;
+    const name: string | undefined = fs.listFileSync(folder).find((value: string) => value.startsWith(`${assetId}.`));
+    return name ? `${folder}/${name}` : undefined;
+  }
+
+  private async audition(request: CapabilityRequest, cancellation: Cancellation): Promise<CapabilityResult> {
+    if (!request.project || request.manifest.length !== 1 || this.player || this.playerInput) {
+      return this.failure('PLAYBACK_STATE', 'playback_failed');
+    }
+    const piece = request.manifest[0];
+    if (!Number.isSafeInteger(piece.startUs) || !Number.isSafeInteger(piece.endUs) ||
+      piece.startUs < 0 || piece.endUs <= piece.startUs) {
+      return this.failure('PLAYBACK_RANGE', 'playback_failed');
+    }
+    const path: string | undefined = this.assetPath(request.project.id, piece.assetId);
+    if (!path || cancellation.cancelled) { return this.failure(cancellation.cancelled ? 'CANCELLED' : 'PLAYBACK_ASSET_NOT_FOUND',
+      cancellation.cancelled ? 'operation_cancelled' : 'playback_failed'); }
+    const input: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
+    this.playerInput = input;
+    const player: media.AVPlayer = await media.createAVPlayer();
+    this.player = player;
+    const startMs: number = Math.floor(piece.startUs / 1000);
+    const endMs: number = Math.ceil(piece.endUs / 1000);
+    return await new Promise<CapabilityResult>((resolve) => {
+      let settled: boolean = false;
+      let cancelTimer: number = 0;
+      const finish = async (result: CapabilityResult): Promise<void> => {
+        if (settled) { return; }
+        settled = true;
+        if (cancelTimer !== 0) { clearTimeout(cancelTimer); }
+        await this.releasePlayback();
+        resolve(result);
+      };
+      const onState = (state: string): void => {
+        if (state === 'error') { finish(this.failure('PLAYBACK_FAILED', 'playback_failed')); }
+        else if (state === 'completed') { finish(this.success('audition_completed')); }
+      };
+      const onError = (): void => { finish(this.failure('PLAYBACK_FAILED', 'playback_failed')); };
+      const onTime = (timeMs: number): void => {
+        if (timeMs >= endMs) {
+          finish(this.success('audition_completed'));
+        }
+      };
+      player.on('stateChange', onState);
+      player.on('error', onError);
+      player.on('timeUpdate', onTime);
+      const watchCancellation = (): void => {
+        if (settled) { return; }
+        if (cancellation.cancelled) {
+          finish(this.failure('CANCELLED', 'operation_cancelled'));
+          return;
+        }
+        cancelTimer = setTimeout(watchCancellation, 50);
+      };
+      cancelTimer = setTimeout(watchCancellation, 50);
+      player.fdSrc = { fd: input.fd, offset: 0, length: fs.statSync(input.fd).size };
+      void player.prepare().then(async () => {
+        if (settled) { return; }
+        if (startMs > 0) { player.seek(startMs); }
+        await player.play();
+      }).catch(() => { onError(); });
+    });
+  }
+
+  private async releasePlayback(): Promise<void> {
+    if (this.player) {
+      try {
+        if (this.player.state === 'playing' || this.player.state === 'paused' || this.player.state === 'prepared') {
+          await this.player.stop();
+        }
+      } catch { }
+      try { await this.player.release(); } catch { }
+      this.player = undefined;
+    }
+    if (this.playerInput) {
+      try { fs.closeSync(this.playerInput); } catch { }
+      this.playerInput = undefined;
+    }
+  }
+
   async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); }
 
   async discardPendingAsset(): Promise<void> {
@@ -213,7 +303,7 @@ export class HuaweiCapabilities implements CapabilityPort {
     this.clearRecordingIdentity();
   }
 
-  async release(): Promise<void> { await this.releaseRecorder(); }
+  async release(): Promise<void> { await this.releaseRecorder(); await this.releasePlayback(); }
 
   private async releaseRecorder(): Promise<void> {
     if (this.recorder) {
