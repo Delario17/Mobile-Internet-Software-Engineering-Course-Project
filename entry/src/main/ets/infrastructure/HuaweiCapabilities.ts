@@ -37,8 +37,11 @@ export class HuaweiCapabilities implements CapabilityPort {
     } catch {
       await this.releaseRecorder();
       await this.releasePlayback();
-      return this.failure(request.operation === 'import' ? 'IMPORT_FAILED' : 'RECORDING_FAILED',
-        request.operation === 'import' ? 'import_failed' : 'recording_failed');
+      if (request.operation === 'import') { return this.failure('IMPORT_FAILED', 'import_failed'); }
+      if (request.operation === 'auditionSource' || request.operation === 'auditionTake') {
+        return this.failure('PLAYBACK_FAILED', 'playback_failed');
+      }
+      return this.failure('RECORDING_FAILED', 'recording_failed');
     }
     // TODO(HUAWEI_API): 按 request.operation 接入官方录音、音频选择/校验、离线 ASR/时间对齐、
     // PCM 播放/编码/文档导出。项目文件调用集中在 HuaweiProjectFiles。

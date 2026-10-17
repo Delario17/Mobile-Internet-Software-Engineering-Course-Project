@@ -163,3 +163,13 @@ test('source audition reports player errors instead of success', async () => {
   assert.equal(result.errorCode, 'PLAYBACK_FAILED');
   assert.equal(playerInstance.state, 'released');
 });
+
+test('missing audition asset reports playback failure instead of recording failure', async () => {
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const project = new (require('../entry/src/main/ets/domain/Project.ts').Project)('p', 'missing', 2400000);
+  const result = await capabilities.execute({ operation: 'auditionSource', selectedSegmentId: 's', auditionTakeId: '',
+    project, manifest: [{ assetId: 'missing', startUs: 0, endUs: 1000000, outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
+  assert.equal(result.ok, false);
+  assert.equal(result.errorCode, 'PLAYBACK_ASSET_NOT_FOUND');
+  assert.equal(result.messageKey, 'playback_failed');
+});
