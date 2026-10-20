@@ -18,8 +18,10 @@ export class HuaweiCapabilities implements CapabilityPort {
   private retakeSegmentId: string = '';
   private retakeAssetId: string = '';
   private retakePath: string = '';
+  private retakeRangeRevision: number = 0;
   private player: media.AVPlayer | undefined = undefined;
   private playerInput: fs.File | undefined = undefined;
+  private recorderErrorHandler: ((retake: boolean) => void) | undefined = undefined;
 
   constructor(context?: Context, filesDir: string = '') {
     this.context = context; this.filesDir = filesDir;
@@ -89,6 +91,7 @@ export class HuaweiCapabilities implements CapabilityPort {
         fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       const recorder: media.AVRecorder = await media.createAVRecorder();
       this.recorder = recorder;
+      this.observeRecorderFailure(recorder, false);
       await recorder.prepare({
         audioSourceType: media.AudioSourceType.AUDIO_SOURCE_TYPE_MIC,
         profile: {
@@ -194,6 +197,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       const token: string = Date.now().toString();
       this.retakeProjectId = request.project.id;
       this.retakeSegmentId = segment.id;
+      this.retakeRangeRevision = segment.rangeRevision;
       this.retakeAssetId = `take-${token}`;
       const assetDir: string = `${this.filesDir}/projects/${this.retakeProjectId}/assets`;
       fs.mkdirSync(assetDir, true);
@@ -201,6 +205,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       this.output = fs.openSync(this.retakePath, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       const recorder: media.AVRecorder = await media.createAVRecorder();
       this.recorder = recorder;
+      this.observeRecorderFailure(recorder, true);
       await recorder.prepare({ audioSourceType: media.AudioSourceType.AUDIO_SOURCE_TYPE_MIC,
         profile: { audioBitrate: 64000, audioChannels: 1, audioCodec: media.CodecMimeType.AUDIO_AAC,
           audioSampleRate: 16000, fileFormat: media.ContainerFormatType.CFT_MPEG_4A }, url: `fd://${this.output.fd}` });
@@ -220,9 +225,13 @@ export class HuaweiCapabilities implements CapabilityPort {
     fs.closeSync(this.output); this.output = undefined;
     try {
       const durationMs: number = await this.readDurationMs(this.retakePath);
-      if (durationMs <= 0) { throw new Error('INVALID_RETAKE'); }
+      if (cancellation.cancelled) { await this.discardRetakeAsset(); return this.failure('CANCELLED', 'operation_cancelled'); }
+      if (durationMs < 300) {
+        await this.discardRetakeAsset();
+        return this.failure('RETAKE_TOO_SHORT', 'retake_too_short');
+      }
       const sourceProject: Project | undefined = request.project;
-      if (!sourceProject) { throw new Error('PROJECT_REQUIRED'); }
+      if (!sourceProject || sourceProject.id !== this.retakeProjectId) { throw new Error('PROJECT_REQUIRED'); }
       const project: Project = new Project(sourceProject.id, sourceProject.sourceAssetId, sourceProject.sourceDurationUs);
       project.sequence = sourceProject.sequence;
       project.updatedAtMs = sourceProject.updatedAtMs;
@@ -230,7 +239,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       project.dspProfileVersion = sourceProject.dspProfileVersion;
       project.segments = sourceProject.segments.slice(); project.takes = sourceProject.takes.slice();
       const segment: Segment | undefined = project.segments.find((value: Segment) => value.id === this.retakeSegmentId);
-      if (!segment) { throw new Error('SEGMENT_REQUIRED'); }
+      if (!segment || segment.rangeRevision !== this.retakeRangeRevision) { throw new Error('SEGMENT_REQUIRED'); }
       project.takes.push(new Take(this.retakeAssetId, segment.id, segment.rangeRevision, this.retakeAssetId, durationMs * 1000));
       return { ok: true, errorCode: '', messageKey: 'retake_saved', recoverable: false, project };
     } catch {
@@ -241,7 +250,23 @@ export class HuaweiCapabilities implements CapabilityPort {
 
   private async discardRetakeAsset(): Promise<void> {
     if (this.retakePath !== '') { try { fs.unlinkSync(this.retakePath); } catch { } }
+    this.clearRetakeIdentity();
+  }
+
+  setRecorderErrorHandler(handler: (retake: boolean) => void): void { this.recorderErrorHandler = handler; }
+
+  private observeRecorderFailure(recorder: media.AVRecorder, retake: boolean): void {
+    recorder.on('error', () => {
+      if (this.recorder !== recorder) { return; }
+      void this.releaseRecorder().then(() => {
+        if (this.recorderErrorHandler) { this.recorderErrorHandler(retake); }
+      });
+    });
+  }
+
+  private clearRetakeIdentity(): void {
     this.retakeProjectId = ''; this.retakeSegmentId = ''; this.retakeAssetId = ''; this.retakePath = '';
+    this.retakeRangeRevision = 0;
   }
 
   private async importAudio(cancellation: Cancellation): Promise<CapabilityResult> {
@@ -376,7 +401,10 @@ export class HuaweiCapabilities implements CapabilityPort {
     }
   }
 
-  async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); await this.discardRetakeAsset(); }
+  async finalizePendingAsset(): Promise<void> {
+    this.clearRecordingIdentity();
+    this.clearRetakeIdentity();
+  }
 
   async discardPendingAsset(): Promise<void> {
     this.discardSourceAsset();

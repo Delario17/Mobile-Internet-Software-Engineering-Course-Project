@@ -38,7 +38,13 @@ struct Index {
   @State retakeState: string = 'idle';
   @State pendingDeleteId: string = '';
 
-  aboutToAppear(): void { this.loadProjects(); }
+  aboutToAppear(): void {
+    AppServices.capabilities.setRecorderErrorHandler?.((retake: boolean) => {
+      this.recordingState = 'idle'; this.retakeState = 'idle'; this.busy = false;
+      this.message = retake ? 'retake_failed' : 'recording_failed';
+    });
+    this.loadProjects();
+  }
 
   async loadProjects(): Promise<void> {
     if (this.busy) { return; }
@@ -200,6 +206,7 @@ struct Index {
         else if (this.message === 'playback_failed') { Text($r('app.string.playback_failed')) }
         else if (this.message === 'audition_completed') { Text($r('app.string.audition_completed')) }
         else if (this.message === 'retake_failed') { Text($r('app.string.retake_failed')) }
+        else if (this.message === 'retake_too_short') { Text($r('app.string.retake_too_short')) }
         else { Text($r('app.string.operation_failed')) }
         if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
           this.message !== 'audition_completed' &&

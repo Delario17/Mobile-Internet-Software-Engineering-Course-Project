@@ -28,5 +28,6 @@ export interface CapabilityPort {
   finalizePendingAsset?(): Promise<void>;
   /** Remove an asset created by a failed project commit. */
   discardPendingAsset?(): Promise<void>;
+  setRecorderErrorHandler?(handler: (retake: boolean) => void): void;
   release(): Promise<void>;
 }

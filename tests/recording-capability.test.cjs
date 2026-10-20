@@ -11,10 +11,14 @@ let pickerUris = ['file://media/audio.m4a'];
 let copied = [];
 let openedPaths = [];
 let playerInstance;
+let retakeAssetName = '';
+let latestRecorder;
 
 function recorder() {
   return {
     state: 'idle',
+    callbacks: {},
+    on(type, callback) { this.callbacks[type] = callback; },
     async prepare() { this.state = 'prepared'; },
     async start() { this.state = 'started'; },
     async pause() { this.state = 'paused'; },
@@ -30,7 +34,7 @@ const fileIo = {
   openSync(path) { openedPaths.push(path); return { fd: nextFd++ }; },
   closeSync(file) { closed.push(file.fd); },
   statSync() { return { size: 12 }; },
-  listFileSync() { return ['source-play.m4a']; },
+  listFileSync(path) { return path.includes('p-retake') && retakeAssetName !== '' ? [retakeAssetName] : ['source-play.m4a']; },
   unlinkSync(path) { unlinked.push(path); },
   async copyFile(src, dest) { copied.push({ src, dest }); },
   rmdirSync() {}
@@ -45,7 +49,7 @@ global.__arktsTestKits = {
     AudioSourceType: { AUDIO_SOURCE_TYPE_MIC: 1 },
     CodecMimeType: { AUDIO_AAC: 'aac' },
     ContainerFormatType: { CFT_MPEG_4A: 'm4a' },
-    async createAVRecorder() { recorderCreates++; return recorder(); },
+    async createAVRecorder() { recorderCreates++; latestRecorder = recorder(); return latestRecorder; },
     async createAVMetadataExtractor() { throw new Error('METADATA_CREATE_FAILED'); },
     async createAVPlayer() {
       playerInstance = {
@@ -197,4 +201,50 @@ test('retake records an independent candidate and never replaces the source asse
   assert.equal(stopped.project.takes[0].segmentId, 's');
   assert.equal(stopped.project.takes[0].durationUs, 900000);
   assert(openedPaths.some(path => /\/projects\/p-retake\/assets\/take-[0-9]+\.m4a$/.test(path)));
+  retakeAssetName = openedPaths.find(path => /\/projects\/p-retake\/assets\/take-[0-9]+\.m4a$/.test(path)).split('/').at(-1);
+  await capabilities.finalizePendingAsset();
+  assert.equal(unlinked.some(path => path.endsWith(retakeAssetName)), false);
+  const audition = capabilities.execute({ operation: 'auditionTake', selectedSegmentId: 's', auditionTakeId: stopped.project.takes[0].id,
+    project: stopped.project, manifest: [{ assetId: stopped.project.takes[0].assetId, startUs: 0, endUs: 900000,
+      outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
+  await Promise.resolve(); await Promise.resolve();
+  playerInstance.callbacks.timeUpdate(900);
+  assert.equal((await audition).ok, true);
+});
+
+test('retake shorter than 300 ms is rejected and its candidate removed', async () => {
+  global.__arktsTestKits.mediaKit.media.createAVMetadataExtractor = async () => ({
+    fdSrc: undefined,
+    async fetchMetadata() { return { duration: '299' }; },
+    async release() {}
+  });
+  const Project = require('../entry/src/main/ets/domain/Project.ts').Project;
+  const Segment = require('../entry/src/main/ets/domain/Project.ts').Segment;
+  const project = new Project('p-short', 'source-short', 1000000);
+  project.segments.push(new Segment('s', 'hello', 0, 900000));
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const req = operation => ({ operation, selectedSegmentId: 's', auditionTakeId: '', project, manifest: [], optionalScript: '' });
+  await capabilities.execute(req('retakeStart'), new Cancellation(), () => {});
+  const result = await capabilities.execute(req('retakeStop'), new Cancellation(), () => {});
+  assert.equal(result.errorCode, 'RETAKE_TOO_SHORT');
+  assert.equal(result.project, undefined);
+  assert.match(unlinked.at(-1), /\/take-[0-9]+\.m4a$/);
+});
+
+test('recorder interruption releases resources and deletes an uncommitted retake', async () => {
+  const Project = require('../entry/src/main/ets/domain/Project.ts').Project;
+  const Segment = require('../entry/src/main/ets/domain/Project.ts').Segment;
+  const project = new Project('p-interrupted', 'source-safe', 1000000);
+  project.segments.push(new Segment('s', 'text', 0, 800000));
+  let interruptionNotified = false;
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  capabilities.setRecorderErrorHandler(() => { interruptionNotified = true; });
+  const result = await capabilities.execute({ ...request('retakeStart'), project, selectedSegmentId: 's' }, new Cancellation(), () => {});
+  assert.equal(result.ok, true);
+  const candidatePath = openedPaths.at(-1);
+  latestRecorder.callbacks.error({ code: 5400107, message: 'Audio interrupted' });
+  await new Promise(resolve => setImmediate(resolve));
+  assert.equal(interruptionNotified, true);
+  assert.equal(latestRecorder.state, 'released');
+  assert(unlinked.includes(candidatePath));
 });

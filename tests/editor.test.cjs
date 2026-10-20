@@ -108,6 +108,66 @@ test('retake commits join undo history; failed media commit preserves history an
   assert.equal(session.project.sequence, sequence + 2);
 });
 
+test('retake lifecycle publishes a range-bound take only after its project commit', async () => {
+  const session = new EditorSession();
+  session.project = new Project('p-retake-session', 'source-fixed', 2000000);
+  session.project.segments.push(new Segment('sentence', 'spoken text', 200000, 1100000));
+  session.selectedSegmentId = 'sentence';
+  const originalRange = [session.project.segments[0].startUs, session.project.segments[0].endUs];
+  const calls = [];
+  session.store = { async commit(candidate, expected) {
+    assert.equal(expected, 0);
+    candidate.sequence = 1;
+    return candidate;
+  } };
+  AppServices.capabilities = {
+    async execute(request) {
+      calls.push(request.operation);
+      if (request.operation === 'retakeStop') {
+        request.project.takes.push(new Take('take-new', 'sentence', 1, 'take-new', 720000));
+        return { ok: true, errorCode: '', messageKey: 'retake_saved', recoverable: false, project: request.project };
+      }
+      return { ok: true, errorCode: '', messageKey: 'retake_started', recoverable: false };
+    },
+    async finalizePendingAsset() {},
+    async discardPendingAsset() { assert.fail('successful candidate must not be discarded'); },
+    async release() {}
+  };
+  assert.equal((await session.run('retakeStart', '', () => {})).ok, true);
+  assert.equal(session.project.takes.length, 0);
+  await session.run('retakePause', '', () => {});
+  await session.run('retakeResume', '', () => {});
+  const saved = await session.run('retakeStop', '', () => {});
+  assert.equal(saved.ok, true);
+  assert.deepEqual(calls, ['retakeStart', 'retakePause', 'retakeResume', 'retakeStop']);
+  assert.equal(session.project.sourceAssetId, 'source-fixed');
+  assert.deepEqual([session.project.segments[0].startUs, session.project.segments[0].endUs], originalRange);
+  assert.deepEqual(session.project.takes.map(take => [take.segmentId, take.rangeRevision, take.assetId]),
+    [['sentence', 1, 'take-new']]);
+});
+
+test('retake commit failure discards pending candidate and leaves the source project published', async () => {
+  const session = new EditorSession();
+  session.project = new Project('p-retake-failure', 'source-fixed', 1000000);
+  session.project.segments.push(new Segment('sentence', 'spoken text', 0, 900000));
+  session.selectedSegmentId = 'sentence';
+  session.store = { async commit() { throw new Error('DISK_FULL'); } };
+  let discarded = 0;
+  AppServices.capabilities = {
+    async execute(request) {
+      const candidate = request.project;
+      candidate.takes.push(new Take('take-fail', 'sentence', 1, 'take-fail', 650000));
+      return { ok: true, errorCode: '', messageKey: 'retake_saved', recoverable: false, project: candidate };
+    },
+    async discardPendingAsset() { discarded++; }, async release() {}
+  };
+  const result = await session.run('retakeStop', '', () => {});
+  assert.equal(result.messageKey, 'save_failed');
+  assert.equal(discarded, 1);
+  assert.equal(session.project.sourceAssetId, 'source-fixed');
+  assert.equal(session.project.takes.length, 0);
+});
+
 test('edits are committed before publication; save failure preserves current project', async () => {
   const session = new EditorSession();
   session.project = new Project('p', 'source', 10000);

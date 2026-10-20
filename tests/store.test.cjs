@@ -4,7 +4,7 @@ const test = require('node:test');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { Project, Segment } = require('../entry/src/main/ets/domain/Project.ts');
+const { Project, Segment, Take } = require('../entry/src/main/ets/domain/Project.ts');
 const { ProjectStore } = require('../entry/src/main/ets/application/ProjectStore.ts');
 const { decodeProject } = require('../entry/src/main/ets/application/ProjectStore.ts');
 
@@ -66,6 +66,21 @@ test('revisions append, conflict fails, restart restores last committed edits', 
   assert.equal((await new ProjectStore(files).restore('p')).segments[0].text, 'changed');
   await assert.rejects(store.commit(first, 1), /REVISION_CONFLICT/);
   assert.equal((await store.restore('p')).sequence, 2);
+});
+
+test('retake references survive project restart and remain bound to their source range revision', async t => {
+  const { store, files } = await fixture(t);
+  const project = new Project('p-retake', 'source', 2000000);
+  project.segments.push(new Segment('sentence', 'text', 200000, 1100000));
+  project.takes.push(new Take('take-1', 'sentence', 1, 'take-1', 850000));
+  await files.write('p-retake/assets/source.m4a', 'source');
+  await files.write('p-retake/assets/take-1.m4a', 'candidate');
+  await store.commit(project, 0);
+  const restored = await new ProjectStore(files).restore('p-retake');
+  assert.equal(restored.sourceAssetId, 'source');
+  assert.deepEqual(restored.takes.map(take => [take.assetId, take.segmentId, take.rangeRevision]),
+    [['take-1', 'sentence', 1]]);
+  assert.equal(await files.read('p-retake/assets/take-1.m4a'), 'candidate');
 });
 
 test('failed HEAD replacement keeps prior committed state and ignores orphan revision', async t => {

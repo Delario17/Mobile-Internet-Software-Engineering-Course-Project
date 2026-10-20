@@ -14,6 +14,7 @@
   { "name": "playback_failed", "value": "播放失败，未确认试听结果。" },
   { "name": "audition_completed", "value": "试听已完成" },
   { "name": "retake_failed", "value": "重录失败，源录音未被修改。" },
+  { "name": "retake_too_short", "value": "这段重录不足 0.3 秒，已丢弃。源录音保持不变。" },
   { "name": "retake_started", "value": "正在重录当前句段" },
   { "name": "retake_paused", "value": "重录已暂停" },
   { "name": "pause_retake", "value": "暂停重录" },

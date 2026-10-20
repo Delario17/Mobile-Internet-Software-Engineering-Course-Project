@@ -23,6 +23,7 @@ declare module '@kit.MediaKit' {
   namespace media {
     interface AVRecorder {
       state: string;
+      on(type: string, callback: (...args: any[]) => void): void;
       prepare(config: object): Promise<void>;
       start(): Promise<void>;
       pause(): Promise<void>;
