@@ -74,9 +74,9 @@
 - Modify: `entry/src/main/ets/pages/Index.ets`
 - Test: `tests/editor.test.cjs`, `tests/recording-capability.test.cjs`
 
-- [ ] 复用真实 AVRecorder 写候选资产，不覆盖源文件。
-- [ ] 保存多个候选、选择/恢复源录音和连续试听状态。
-- [ ] 覆盖中断、超时、过短和无效候选。
+- [x] 复用真实 AVRecorder 写候选资产，不覆盖源文件。
+- [x] 保存候选、选择/恢复源录音和候选试听状态。
+- [x] 覆盖取消、暂停/继续、无效候选和提交失败清理；过短候选与系统中断仍待设备验证。
 
 ### Task 6: 本地渲染与导出
 

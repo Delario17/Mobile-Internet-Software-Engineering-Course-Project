@@ -1,5 +1,5 @@
 import { CapabilityPort, CapabilityRequest, CapabilityResult, Cancellation, Progress } from '../domain/Capabilities';
-import { Project } from '../domain/Project';
+import { Project, Segment, Take } from '../domain/Project';
 import { fileIo as fs, picker } from '@kit.CoreFileKit';
 import { media } from '@kit.MediaKit';
 import { abilityAccessCtrl, Context, PermissionRequestResult, Permissions } from '@kit.AbilityKit';
@@ -14,6 +14,10 @@ export class HuaweiCapabilities implements CapabilityPort {
   private sourceAssetId: string = '';
   private sourcePath: string = '';
   private starting: boolean = false;
+  private retakeProjectId: string = '';
+  private retakeSegmentId: string = '';
+  private retakeAssetId: string = '';
+  private retakePath: string = '';
   private player: media.AVPlayer | undefined = undefined;
   private playerInput: fs.File | undefined = undefined;
 
@@ -30,6 +34,10 @@ export class HuaweiCapabilities implements CapabilityPort {
       if (request.operation === 'recordPause') { return await this.pauseRecording(cancellation); }
       if (request.operation === 'recordResume') { return await this.resumeRecording(cancellation); }
       if (request.operation === 'recordStop') { return await this.stopRecording(cancellation); }
+      if (request.operation === 'retakeStart') { return await this.startRetake(request, cancellation); }
+      if (request.operation === 'retakePause') { return await this.pauseRecording(cancellation); }
+      if (request.operation === 'retakeResume') { return await this.resumeRecording(cancellation); }
+      if (request.operation === 'retakeStop') { return await this.stopRetake(request, cancellation); }
       if (request.operation === 'import') { return await this.importAudio(cancellation); }
       if (request.operation === 'auditionSource' || request.operation === 'auditionTake') {
         return await this.audition(request, cancellation);
@@ -38,6 +46,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       await this.releaseRecorder();
       await this.releasePlayback();
       if (request.operation === 'import') { return this.failure('IMPORT_FAILED', 'import_failed'); }
+      if (request.operation.startsWith('retake')) { return this.failure('RETAKE_FAILED', 'retake_failed'); }
       if (request.operation === 'auditionSource' || request.operation === 'auditionTake') {
         return this.failure('PLAYBACK_FAILED', 'playback_failed');
       }
@@ -165,6 +174,74 @@ export class HuaweiCapabilities implements CapabilityPort {
     }
     const project: Project = new Project(this.projectId, this.sourceAssetId, durationMs * 1000);
     return { ok: true, errorCode: '', messageKey: 'recording_saved', recoverable: false, project: project };
+  }
+
+  private async startRetake(request: CapabilityRequest, cancellation: Cancellation): Promise<CapabilityResult> {
+    if (!request.project || !request.selectedSegmentId || this.recorder || this.starting || !this.context || this.filesDir === '') {
+      return this.failure('RETAKE_STATE', 'retake_failed');
+    }
+    const segment: Segment | undefined = request.project.segments.find((value: Segment) => value.id === request.selectedSegmentId);
+    if (!segment || cancellation.cancelled) { return this.failure(cancellation.cancelled ? 'CANCELLED' : 'SEGMENT_REQUIRED', cancellation.cancelled ? 'operation_cancelled' : 'retake_failed'); }
+    this.starting = true;
+    try {
+      const permission: Permissions = 'ohos.permission.MICROPHONE';
+      const permissionResult: PermissionRequestResult = await abilityAccessCtrl.createAtManager()
+        .requestPermissionsFromUser(this.context, [permission]);
+      if (cancellation.cancelled) { return this.failure('CANCELLED', 'operation_cancelled'); }
+      if (permissionResult.authResults.length !== 1 || permissionResult.authResults[0] !== 0) {
+        return this.failure('MICROPHONE_DENIED', 'microphone_denied');
+      }
+      const token: string = Date.now().toString();
+      this.retakeProjectId = request.project.id;
+      this.retakeSegmentId = segment.id;
+      this.retakeAssetId = `take-${token}`;
+      const assetDir: string = `${this.filesDir}/projects/${this.retakeProjectId}/assets`;
+      fs.mkdirSync(assetDir, true);
+      this.retakePath = `${assetDir}/${this.retakeAssetId}.m4a`;
+      this.output = fs.openSync(this.retakePath, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      const recorder: media.AVRecorder = await media.createAVRecorder();
+      this.recorder = recorder;
+      await recorder.prepare({ audioSourceType: media.AudioSourceType.AUDIO_SOURCE_TYPE_MIC,
+        profile: { audioBitrate: 64000, audioChannels: 1, audioCodec: media.CodecMimeType.AUDIO_AAC,
+          audioSampleRate: 16000, fileFormat: media.ContainerFormatType.CFT_MPEG_4A }, url: `fd://${this.output.fd}` });
+      if (cancellation.cancelled) { await this.releaseRecorder(); return this.failure('CANCELLED', 'operation_cancelled'); }
+      await recorder.start();
+      if (cancellation.cancelled) { await this.releaseRecorder(); return this.failure('CANCELLED', 'operation_cancelled'); }
+      return this.success('retake_started');
+    } finally { this.starting = false; }
+  }
+
+  private async stopRetake(request: CapabilityRequest, cancellation: Cancellation): Promise<CapabilityResult> {
+    if (!this.recorder || !this.output || this.retakePath === '' || this.recorder.state !== 'started' && this.recorder.state !== 'paused') {
+      return this.failure('RETAKE_STATE', 'retake_failed');
+    }
+    if (cancellation.cancelled) { await this.releaseRecorder(); return this.failure('CANCELLED', 'operation_cancelled'); }
+    await this.recorder.stop(); await this.recorder.release(); this.recorder = undefined;
+    fs.closeSync(this.output); this.output = undefined;
+    try {
+      const durationMs: number = await this.readDurationMs(this.retakePath);
+      if (durationMs <= 0) { throw new Error('INVALID_RETAKE'); }
+      const sourceProject: Project | undefined = request.project;
+      if (!sourceProject) { throw new Error('PROJECT_REQUIRED'); }
+      const project: Project = new Project(sourceProject.id, sourceProject.sourceAssetId, sourceProject.sourceDurationUs);
+      project.sequence = sourceProject.sequence;
+      project.updatedAtMs = sourceProject.updatedAtMs;
+      project.policyVersion = sourceProject.policyVersion;
+      project.dspProfileVersion = sourceProject.dspProfileVersion;
+      project.segments = sourceProject.segments.slice(); project.takes = sourceProject.takes.slice();
+      const segment: Segment | undefined = project.segments.find((value: Segment) => value.id === this.retakeSegmentId);
+      if (!segment) { throw new Error('SEGMENT_REQUIRED'); }
+      project.takes.push(new Take(this.retakeAssetId, segment.id, segment.rangeRevision, this.retakeAssetId, durationMs * 1000));
+      return { ok: true, errorCode: '', messageKey: 'retake_saved', recoverable: false, project };
+    } catch {
+      await this.discardRetakeAsset();
+      return this.failure('RETAKE_FAILED', 'retake_failed');
+    }
+  }
+
+  private async discardRetakeAsset(): Promise<void> {
+    if (this.retakePath !== '') { try { fs.unlinkSync(this.retakePath); } catch { } }
+    this.retakeProjectId = ''; this.retakeSegmentId = ''; this.retakeAssetId = ''; this.retakePath = '';
   }
 
   private async importAudio(cancellation: Cancellation): Promise<CapabilityResult> {
@@ -299,11 +376,12 @@ export class HuaweiCapabilities implements CapabilityPort {
     }
   }
 
-  async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); }
+  async finalizePendingAsset(): Promise<void> { this.clearRecordingIdentity(); await this.discardRetakeAsset(); }
 
   async discardPendingAsset(): Promise<void> {
     this.discardSourceAsset();
     this.clearRecordingIdentity();
+    await this.discardRetakeAsset();
   }
 
   async release(): Promise<void> { await this.releaseRecorder(); await this.releasePlayback(); }

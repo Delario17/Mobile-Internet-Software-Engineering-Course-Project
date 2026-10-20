@@ -9,6 +9,7 @@ const unlinked = [];
 let nextFd = 1;
 let pickerUris = ['file://media/audio.m4a'];
 let copied = [];
+let openedPaths = [];
 let playerInstance;
 
 function recorder() {
@@ -26,7 +27,7 @@ function recorder() {
 const fileIo = {
   OpenMode: { READ_ONLY: 0, WRITE_ONLY: 1, CREATE: 64, TRUNC: 512 },
   mkdirSync() {},
-  openSync() { return { fd: nextFd++ }; },
+  openSync(path) { openedPaths.push(path); return { fd: nextFd++ }; },
   closeSync(file) { closed.push(file.fd); },
   statSync() { return { size: 12 }; },
   listFileSync() { return ['source-play.m4a']; },
@@ -172,4 +173,28 @@ test('missing audition asset reports playback failure instead of recording failu
   assert.equal(result.ok, false);
   assert.equal(result.errorCode, 'PLAYBACK_ASSET_NOT_FOUND');
   assert.equal(result.messageKey, 'playback_failed');
+});
+
+test('retake records an independent candidate and never replaces the source asset', async () => {
+  global.__arktsTestKits.mediaKit.media.createAVMetadataExtractor = async () => ({
+    fdSrc: undefined,
+    async fetchMetadata() { return { duration: '900' }; },
+    async release() {}
+  });
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const Project = require('../entry/src/main/ets/domain/Project.ts').Project;
+  const project = new Project('p-retake', 'source-original', 2400000);
+  project.segments.push(new (require('../entry/src/main/ets/domain/Project.ts').Segment)('s', 'hello', 0, 1000000));
+  const req = operation => ({ operation, selectedSegmentId: 's', auditionTakeId: '', project,
+    manifest: [], optionalScript: '' });
+  assert.equal((await capabilities.execute(req('retakeStart'), new Cancellation(), () => {})).ok, true);
+  assert.equal((await capabilities.execute(req('retakePause'), new Cancellation(), () => {})).ok, true);
+  assert.equal((await capabilities.execute(req('retakeResume'), new Cancellation(), () => {})).ok, true);
+  const stopped = await capabilities.execute(req('retakeStop'), new Cancellation(), () => {});
+  assert.equal(stopped.ok, true);
+  assert.equal(stopped.project.sourceAssetId, 'source-original');
+  assert.equal(stopped.project.takes.length, 1);
+  assert.equal(stopped.project.takes[0].segmentId, 's');
+  assert.equal(stopped.project.takes[0].durationUs, 900000);
+  assert(openedPaths.some(path => /\/projects\/p-retake\/assets\/take-[0-9]+\.m4a$/.test(path)));
 });

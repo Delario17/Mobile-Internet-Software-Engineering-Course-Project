@@ -35,10 +35,10 @@ export class EditorSession {
     if (operation === 'export' && this.project && pendingReview(this.project).length > 0) {
       return this.failure('REVIEW_REQUIRED', 'review_required');
     }
-    if (!['record', 'recordStart', 'recordPause', 'recordResume', 'recordStop', 'import'].includes(operation) && !this.project) {
+    if (!['record', 'recordStart', 'recordPause', 'recordResume', 'recordStop', 'import', 'retakeStart', 'retakePause', 'retakeResume', 'retakeStop'].includes(operation) && !this.project) {
       return this.failure('PROJECT_REQUIRED', 'project_required');
     }
-    if (['retake', 'auditionSource', 'auditionTake'].includes(operation) && (!this.project || !this.project.segments.some((segment) =>
+    if (['retake', 'retakeStart', 'retakeStop', 'auditionSource', 'auditionTake'].includes(operation) && (!this.project || !this.project.segments.some((segment) =>
       segment.id === this.selectedSegmentId))) { return this.failure('SEGMENT_REQUIRED', 'segment_required'); }
     this.busy = true;
     this.cancellation = new Cancellation();
@@ -80,12 +80,12 @@ export class EditorSession {
         return this.failure('CANCELLED', 'operation_cancelled');
       }
       if (result.ok && result.project) {
-        if (!['record', 'recordStop', 'import', 'recognize', 'retake'].includes(operation)) {
+        if (!['record', 'recordStop', 'import', 'recognize', 'retake', 'retakeStop'].includes(operation)) {
           return this.failure('UNEXPECTED_PROJECT_RESULT', 'operation_failed');
         }
         const candidate: Project = copyProject(result.project);
         const previous: Project | undefined = this.project;
-        const createsAsset: boolean = ['record', 'recordStop', 'import', 'retake'].includes(operation);
+        const createsAsset: boolean = ['record', 'recordStop', 'import', 'retake', 'retakeStop'].includes(operation);
         clearTimeout(timer); this.abort = undefined; this.committing = true;
         const saved: Project = await this.store.commit(candidate, this.project ? this.project.sequence : 0);
         commitSucceeded = true;
@@ -95,7 +95,7 @@ export class EditorSession {
         if (createsAsset && AppServices.capabilities.finalizePendingAsset) {
           try { await AppServices.capabilities.finalizePendingAsset(); } catch { finalizeWarning = true; }
         }
-        if (previous && ['recognize', 'retake'].includes(operation)) { this.history.push(copyProject(previous)); }
+        if (previous && ['recognize', 'retake', 'retakeStop'].includes(operation)) { this.history.push(copyProject(previous)); }
         else { this.history = []; }
         if (finalizeWarning) { saved.recoveryWarning = true; }
         if (!saved.segments.some((s: Segment) => s.id === targetId)) { this.selectedSegmentId = ''; }
@@ -108,7 +108,7 @@ export class EditorSession {
       }
       return result;
     } catch {
-      if (this.committing && !commitSucceeded && ['record', 'recordStop', 'import', 'retake'].includes(operation) &&
+      if (this.committing && !commitSucceeded && ['record', 'recordStop', 'import', 'retake', 'retakeStop'].includes(operation) &&
         AppServices.capabilities.discardPendingAsset) {
         try { await AppServices.capabilities.discardPendingAsset(); } catch { }
       }

@@ -35,6 +35,7 @@ struct Index {
   @State projects: Project[] = [];
   @State projectsLoaded: boolean = false;
   @State recordingState: string = 'idle';
+  @State retakeState: string = 'idle';
   @State pendingDeleteId: string = '';
 
   aboutToAppear(): void { this.loadProjects(); }
@@ -121,7 +122,12 @@ struct Index {
     else if (result.ok && operation === 'recordPause') { this.recordingState = 'paused'; }
     else if (result.ok && operation === 'recordResume') { this.recordingState = 'recording'; }
     else if (result.ok && operation === 'recordStop') { this.recordingState = 'idle'; }
+    else if (result.ok && operation === 'retakeStart') { this.retakeState = 'recording'; }
+    else if (result.ok && operation === 'retakePause') { this.retakeState = 'paused'; }
+    else if (result.ok && operation === 'retakeResume') { this.retakeState = 'recording'; }
+    else if (result.ok && operation === 'retakeStop') { this.retakeState = 'idle'; }
     else if (!result.ok && operation.startsWith('record')) { this.recordingState = 'idle'; }
+    else if (!result.ok && operation.startsWith('retake')) { this.retakeState = 'idle'; }
     this.busy = false; this.message = result.messageKey; this.refresh();
   }
 
@@ -193,6 +199,7 @@ struct Index {
         else if (this.message === 'imported') { Text($r('app.string.imported')) }
         else if (this.message === 'playback_failed') { Text($r('app.string.playback_failed')) }
         else if (this.message === 'audition_completed') { Text($r('app.string.audition_completed')) }
+        else if (this.message === 'retake_failed') { Text($r('app.string.retake_failed')) }
         else { Text($r('app.string.operation_failed')) }
         if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
           this.message !== 'audition_completed' &&
@@ -218,7 +225,17 @@ struct Index {
     TextArea({ placeholder: $r('app.string.edit_text'), text: this.draftText }).height(100)
       .enabled(!this.busy).onChange((value: string) => this.draftText = value)
     Button($r('app.string.save_text')).height(48).enabled(!this.busy).onClick(() => this.edit('text'))
-    Button($r('app.string.retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retake'))
+    if (this.retakeState === 'idle') {
+      Button($r('app.string.retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakeStart'))
+    } else {
+      Text(this.retakeState === 'paused' ? $r('app.string.retake_paused') : $r('app.string.retake_started'))
+      if (this.retakeState === 'recording') {
+        Button($r('app.string.pause_retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakePause'))
+      } else {
+        Button($r('app.string.resume_retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakeResume'))
+      }
+      Button($r('app.string.finish_retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakeStop'))
+    }
     Button($r('app.string.audition_source')).height(48).enabled(!this.busy).onClick(() => this.perform('auditionSource'))
     if (this.reviewMode) {
       Row({ space: 8 }) {
