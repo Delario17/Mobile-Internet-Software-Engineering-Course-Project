@@ -13,6 +13,7 @@ let openedPaths = [];
 let playerInstance;
 let retakeAssetName = '';
 let latestRecorder;
+let existingAssetDirectory = false;
 
 function recorder() {
   return {
@@ -30,7 +31,7 @@ function recorder() {
 
 const fileIo = {
   OpenMode: { READ_ONLY: 0, WRITE_ONLY: 1, CREATE: 64, TRUNC: 512 },
-  mkdirSync() {},
+  mkdirSync() { if (existingAssetDirectory) { throw { code: 13900015 }; } },
   openSync(path) { openedPaths.push(path); return { fd: nextFd++ }; },
   closeSync(file) { closed.push(file.fd); },
   statSync() { return { size: 12 }; },
@@ -112,6 +113,21 @@ test('metadata setup failure closes every descriptor and removes the uncommitted
   assert(closed.includes(inputFd));
   assert.equal(unlinked.length, 1);
   assert.match(unlinked[0], /\/projects\/p-[0-9]+\/assets\/source-[0-9]+\.m4a$/);
+});
+
+test('retake can start when the project assets directory already exists on API20', async () => {
+  permissionCalls = 1;
+  existingAssetDirectory = true;
+  const capabilities = new HuaweiCapabilities({}, '/private');
+  const project = { id: 'p-existing', sourceAssetId: 'source', sourceDurationUs: 2000000,
+    sequence: 1, updatedAtMs: 0, policyVersion: 1, dspProfileVersion: 'default', segments: [
+      { id: 's', text: 'sentence', startUs: 0, endUs: 1000000, textRevision: 1, rangeRevision: 1,
+        reviewedTextRevision: 0, reviewedRangeRevision: 0, reviewedAtMs: 0, selectedTakeId: '', ancestorIds: [] }
+    ], takes: [] };
+  const result = await capabilities.execute({ ...request('retakeStart'), project, selectedSegmentId: 's' }, new Cancellation(), () => {});
+  assert.equal(result.ok, true);
+  await capabilities.release();
+  existingAssetDirectory = false;
 });
 
 test('import cancellation does not copy an asset or publish a project', async () => {

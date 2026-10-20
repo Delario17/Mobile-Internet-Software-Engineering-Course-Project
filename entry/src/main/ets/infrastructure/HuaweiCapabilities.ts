@@ -92,7 +92,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       this.projectId = `p-${token}`;
       this.sourceAssetId = `source-${token}`;
       const assetDir: string = `${this.filesDir}/projects/${this.projectId}/assets`;
-      fs.mkdirSync(assetDir, true);
+      this.ensureDirectory(assetDir);
       this.sourcePath = `${assetDir}/${this.sourceAssetId}.m4a`;
       this.output = fs.openSync(this.sourcePath,
         fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
@@ -207,7 +207,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       this.retakeRangeRevision = segment.rangeRevision;
       this.retakeAssetId = `take-${token}`;
       const assetDir: string = `${this.filesDir}/projects/${this.retakeProjectId}/assets`;
-      fs.mkdirSync(assetDir, true);
+      this.ensureDirectory(assetDir);
       this.retakePath = `${assetDir}/${this.retakeAssetId}.m4a`;
       this.output = fs.openSync(this.retakePath, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
       const recorder: media.AVRecorder = await media.createAVRecorder();
@@ -291,7 +291,7 @@ export class HuaweiCapabilities implements CapabilityPort {
     this.projectId = `p-${token}`;
     this.sourceAssetId = `source-${token}`;
     const assetDir: string = `${this.filesDir}/projects/${this.projectId}/assets`;
-    fs.mkdirSync(assetDir, true);
+    this.ensureDirectory(assetDir);
     this.sourcePath = `${assetDir}/${this.sourceAssetId}.audio`;
     try {
       await fs.copyFile(uris[0], this.sourcePath);
@@ -331,6 +331,15 @@ export class HuaweiCapabilities implements CapabilityPort {
     const folder: string = `${this.filesDir}/projects/${projectId}/assets`;
     const name: string | undefined = fs.listFileSync(folder).find((value: string) => value.startsWith(`${assetId}.`));
     return name ? `${folder}/${name}` : undefined;
+  }
+
+  /** Core File Kit API20 reports EEXIST when a recursive mkdir reaches an existing directory. */
+  private ensureDirectory(path: string): void {
+    try { fs.mkdirSync(path, true); }
+    catch (error) {
+      const code: number = (error as { code?: number }).code ?? -1;
+      if (code !== 13900015) { throw error; }
+    }
   }
 
   private async audition(request: CapabilityRequest, cancellation: Cancellation): Promise<CapabilityResult> {
