@@ -184,3 +184,29 @@ test('a damaged project cannot hide healthy projects; device IO errors still fai
   files.list = async () => { throw new Error('PERMISSION_DENIED'); };
   await assert.rejects(store.listProjects(), /PERMISSION_DENIED/);
 });
+
+test('recognition session commits detached phrases; restart restores them and failed save publishes nothing', async t => {
+  const { EditorSession } = require('../entry/src/main/ets/application/EditorSession.ts');
+  const { AppServices } = require('../entry/src/main/ets/composition/AppServices.ts');
+  const { copyProject } = require('../entry/src/main/ets/application/ProjectStore.ts');
+  const { store, files } = await fixture(t);
+  const session = new EditorSession(); session.store = store;
+  session.project = await store.commit(new Project('asr', 'source', 1000000), 0);
+  await files.write('asr/assets/source.m4a', 'original audio');
+  AppServices.capabilities = { async execute(request) {
+    const candidate = copyProject(request.project);
+    candidate.segments.push(new Segment('phrase', 'recognized', 100000, 900000));
+    return { ok: true, errorCode: '', messageKey: 'asr_completed', recoverable: false, project: candidate };
+  }, async release() {} };
+  const write = files.write;
+  files.write = async () => { throw new Error('DISK_FULL'); };
+  assert.equal((await session.run('recognize', '', () => {})).errorCode, 'SAVE_FAILED');
+  assert.equal(session.project.segments.length, 0);
+  files.write = write;
+  assert.equal((await session.run('recognize', '', () => {})).ok, true);
+  const restored = await new ProjectStore(files).restore('asr');
+  assert.equal(restored.segments[0].text, 'recognized');
+  assert.equal(restored.segments[0].reviewedAtMs, 0);
+  assert.equal(restored.sourceAssetId, 'source');
+  assert.equal(await files.read('asr/assets/source.m4a'), 'original audio');
+});

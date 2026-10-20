@@ -52,7 +52,8 @@ export class EditorSession {
         timer = setTimeout(() => {
           this.cancellation.cancel();
           resolve(this.failure('TIMEOUT', 'operation_timeout'));
-        }, 30000);
+        }, operation === 'recognize' && this.project ? Math.max(120000,
+          Math.ceil(this.project.sourceDurationUs / 1000) * 2 + 120000) : 30000);
       });
       const snapshot: Project | undefined = this.project ? copyProject(this.project) : undefined;
       let manifest: RenderPiece[] = snapshot ? compileTimeline(snapshot) : [];
@@ -100,7 +101,7 @@ export class EditorSession {
         if (finalizeWarning) { saved.recoveryWarning = true; }
         if (!saved.segments.some((s: Segment) => s.id === targetId)) { this.selectedSegmentId = ''; }
         this.invalidateAudition();
-        return { ok: true, errorCode: '', messageKey: saved.recoveryWarning ? 'recovery_warning' : 'saved',
+        return { ok: true, errorCode: '', messageKey: saved.recoveryWarning ? 'recovery_warning' : operation === 'recognize' ? 'asr_completed' : 'saved',
           recoverable: false, project: saved };
       }
       if (result.ok && operation === 'auditionSource' && snapshot) {

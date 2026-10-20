@@ -60,3 +60,28 @@ declare module '@kit.AbilityKit' {
 declare module '@kit.BasicServicesKit' {
   export class BusinessError extends Error { code: number; }
 }
+declare module 'libaudiopcm.so' {
+  export function decode(fd: number, size: number): Promise<ArrayBuffer>;
+  export function cancelDecode(): void;
+}
+declare module '@kit.CoreSpeechKit' {
+  export namespace speechRecognizer {
+    interface SpeechRecognitionResult { isFinal: boolean; isLast: boolean; result: string; }
+    interface RecognitionListener {
+      onStart(id: string, message: string): void;
+      onEvent(id: string, code: number, message: string): void;
+      onResult(id: string, result: SpeechRecognitionResult): void;
+      onComplete(id: string, message: string): void;
+      onError(id: string, code: number, message: string): void;
+    }
+    interface SpeechRecognitionEngine {
+      setListener(listener: RecognitionListener): void;
+      startListening(params: { sessionId: string; audioInfo: { audioType: string; sampleRate: number; soundChannel: number; sampleBit: number }; extraParams?: Record<string, Object> }): void;
+      writeAudio(id: string, frame: Uint8Array): void;
+      finish(id: string): void;
+      cancel(id: string): void;
+      shutdown(): void;
+    }
+    function createEngine(params: { language: string; online: number; extraParams?: Record<string, Object> }): Promise<SpeechRecognitionEngine>;
+  }
+}

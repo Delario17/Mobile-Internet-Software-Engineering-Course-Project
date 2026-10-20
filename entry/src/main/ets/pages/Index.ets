@@ -183,6 +183,12 @@ struct Index {
     if (this.message !== '') {
       Column({ space: 12 }) {
         if (this.message === 'capability_unavailable') { Text($r('app.string.capability_unavailable')) }
+        else if (this.message === 'asr_existing_edits') { Text($r('app.string.asr_existing_edits')) }
+        else if (this.message === 'asr_no_speech') { Text($r('app.string.asr_no_speech')) }
+        else if (this.message === 'asr_engine_failed') { Text($r('app.string.asr_engine_failed')) }
+        else if (this.message === 'asr_decode_failed') { Text($r('app.string.asr_decode_failed')) }
+        else if (this.message === 'asr_audio_too_long') { Text($r('app.string.asr_audio_too_long')) }
+        else if (this.message === 'asr_completed') { Text($r('app.string.asr_completed')) }
         else if (this.message === 'operation_cancelled') { Text($r('app.string.operation_cancelled')) }
         else if (this.message === 'operation_timeout') { Text($r('app.string.operation_timeout')) }
         else if (this.message === 'review_required') { Text($r('app.string.review_required')) }
@@ -261,7 +267,7 @@ struct Index {
     Text($r('app.string.take_versions')).fontWeight(FontWeight.Medium)
     ForEach(this.takes, (take: Take, index: number) => {
       Column({ space: 8 }) {
-        Text($r('app.string.take_number', index + 1))
+        Text($r('app.string.take_number', (index + 1).toString()))
         Button($r('app.string.audition_take')).height(48).enabled(!this.busy)
           .onClick(() => this.perform('auditionTake', take.id))
         Button($r('app.string.adopt_take')).height(48).enabled(!this.busy).onClick(() => this.edit('take', take.id))
@@ -321,7 +327,7 @@ struct Index {
           }
           ForEach(this.projects, (project: Project) => {
             Column({ space: 8 }) {
-              Button($r('app.string.open_project', new Date(project.updatedAtMs).toLocaleString(), project.sourceDurationUs / 1000000)).height(52)
+              Button($r('app.string.open_project', new Date(project.updatedAtMs).toLocaleString(), (project.sourceDurationUs / 1000000).toFixed(2))).height(52)
                 .enabled(!this.busy).onClick(() => this.openProject(project.id))
               if (this.pendingDeleteId === project.id) {
                 Text($r('app.string.delete_project_confirm')).width('100%').fontColor('#8A2E2E')
@@ -341,7 +347,7 @@ struct Index {
         } else {
           if (this.reviewMode) {
             Text($r('app.string.review_title')).fontSize(24)
-            Text($r('app.string.pending_count', this.pendingCount))
+            Text($r('app.string.pending_count', this.pendingCount.toString()))
             Button($r('app.string.back_editor')).height(48).enabled(!this.busy).onClick(() => this.reviewMode = false)
           } else { Text($r('app.string.editor')).fontSize(24) }
           if (this.segments.length === 0) {
@@ -351,7 +357,7 @@ struct Index {
           ForEach(this.segments, (segment: Segment) => {
             Column({ space: 8 }) {
               Text(segment.text).width('100%')
-              Text($r('app.string.range_value', segment.startUs / 1000000, segment.endUs / 1000000)).fontSize(14)
+              Text($r('app.string.range_value', (segment.startUs / 1000000).toFixed(2), (segment.endUs / 1000000).toFixed(2))).fontSize(14)
               if (segment.id === this.selectedId) { Text($r('app.string.selected_sentence')).fontWeight(FontWeight.Medium) }
               if (segment.reviewedTextRevision !== segment.textRevision || segment.reviewedRangeRevision !== segment.rangeRevision ||
                 segment.reviewedPolicyVersion !== this.session.project?.policyVersion || segment.reviewedBy !== 'USER' || segment.reviewedAtMs <= 0) {

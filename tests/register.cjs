@@ -4,6 +4,8 @@ const Module = require('node:module');
 const originalLoad = Module._load;
 // Test-only stubs: ArkTS kit modules exist only inside DevEco/HarmonyOS runtime.
 Module._load = function(request, parent, isMain) {
+  if (request === '@kit.CoreSpeechKit') { return global.__arktsTestKits?.coreSpeechKit || { speechRecognizer: { createEngine() { throw new Error('TEST_SPEECH_PORT'); } } }; }
+  if (request === 'libaudiopcm.so') { return global.__arktsTestKits?.audioPcm || { decode() { throw new Error('TEST_PCM_PORT'); }, cancelDecode() {} }; }
   if (request === '@kit.CoreFileKit') {
     if (global.__arktsTestKits?.coreFileKit) { return global.__arktsTestKits.coreFileKit; }
     return { fileIo: {

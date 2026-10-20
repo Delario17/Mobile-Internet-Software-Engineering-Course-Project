@@ -1,1 +1,7 @@
-{ "name": "entry", "version": "1.0.0", "dependencies": {} }
+{
+  "name": "entry",
+  "version": "1.0.0",
+  "dependencies": {
+    "libaudiopcm.so": "file:./src/main/cpp/types/libaudiopcm"
+  }
+}

@@ -95,5 +95,11 @@
   { "name": "review_title", "value": "检查并确认" },
   { "name": "pending_count", "value": "还需确认 %s 句" },
   { "name": "back_editor", "value": "返回编辑" },
-  { "name": "operation_timeout", "value": "操作超时，请重试。" }
+  { "name": "operation_timeout", "value": "操作超时，请重试。" },
+  { "name": "asr_existing_edits", "value": "已有句段或重录版本。为保护编辑结果，请先撤销已有分句，或另建项目识别。" },
+  { "name": "asr_no_speech", "value": "未识别到有效语音。源音频已保留，可以试听检查、重试识别或手动建立句段。" },
+  { "name": "asr_engine_failed", "value": "设备离线语音识别启动或处理失败。请确认设备支持端侧中文识别并已安装系统语音服务后重试；源音频未修改。" },
+  { "name": "asr_decode_failed", "value": "无法解码这段音频。请检查文件是否完整、包含有效音轨，或换用录制音频重试。" },
+  { "name": "asr_audio_too_long", "value": "当前离线识别一次最多处理30分钟音频。请导入较短的音频，源音频未修改。" },
+  { "name": "asr_completed", "value": "识别完成。句段范围依据真实音频停顿生成，文字和边界均需试听复核。" }
 ] }

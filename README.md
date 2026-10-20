@@ -26,6 +26,4 @@ pnpm run check
 
 ## 当前交付范围
 
-以 [实现进度](docs/implementation-status.md) 为准。完整录音已接入 Media Kit，并在 API 20 模拟器生成真实 M4A、读取有效时长、保存并恢复项目；首页现在支持二次确认删除项目并清理其私有录音数据。导入、端侧识别、播放、局部重录与导出尚未接入，均返回明确错误，不提供虚假成功结果。工程中没有生产演示数据。签名需要开发者账号/设备授权，仓库不能替你生成有效证书。
-
-官方构建资料：[hvigorw 命令](https://developer.huawei.com/consumer/en/doc/harmonyos-guides/ide-hvigor-commandline)、[hvigor 配置](https://developer.huawei.com/consumer/cn/doc/doccenter-deveco-studio/ide-hmos-hvigor-set-options)。设备能力的核验状态见 [API 接入证据](docs/huawei-api-evidence.md)。
+以 [实现进度](docs/implementation-status.md) 为准。完整录音、导入、源音频/候选试听、局部重录和中文离线自动识别已接入官方系统能力。识别使用 CoreSpeechKit offline 模式，真实 PCM 经停顿分窗后生成待确认句段；不提供词级精确时间戳或数值置信度。全文混音预览与导出仍待接入。没有生产演示转写或云端回退。操作与验收见 [离线识别案例](docs/offline-asr-acceptance.md)。正式签名仍需开发者账号/设备授权。

@@ -1,0 +1,5 @@
+cmake_minimum_required(VERSION 3.5.0)
+project(audiopcm)
+set(CMAKE_CXX_STANDARD 17)
+add_library(audiopcm SHARED AudioPcm.cpp)
+target_link_libraries(audiopcm PUBLIC libace_napi.z.so libnative_media_core.so libnative_media_codecbase.so libnative_media_acodec.so libnative_media_avsource.so libnative_media_avdemuxer.so)

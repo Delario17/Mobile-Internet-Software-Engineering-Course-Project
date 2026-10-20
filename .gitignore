@@ -9,3 +9,6 @@ build/
 local.properties
 *.p12
 *.p7b
+
+# Native CMake generated build state
+.cxx/
