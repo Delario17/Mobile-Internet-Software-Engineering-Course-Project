@@ -1,5 +1,6 @@
 import { speechRecognizer } from '@kit.CoreSpeechKit';
-import { decode, cancelDecode } from 'libaudiopcm.so';
+import { cancelDecode } from 'libaudiopcm.so';
+import { decodeAudio } from './AudioDecode';
 import { Cancellation, CapabilityResult, Progress } from '../domain/Capabilities';
 import { Project, Segment } from '../domain/Project';
 import { copyProject } from '../application/ProjectStore';
@@ -26,7 +27,7 @@ export class OfflineSpeech {
     try {
       if (cancellation.cancelled) { throw new Error('CANCELLED'); }
       progress({ completed: 0, total: 100 });
-      const pcm: Int16Array = new Int16Array(await decode(fd, size));
+      const pcm: Int16Array = new Int16Array(await decodeAudio(fd, size));
       if (cancellation.cancelled) { throw new Error('CANCELLED'); }
       const windows: SpeechWindow[] = speechWindows(pcm);
       if (windows.length === 0) { return this.failure('ASR_NO_SPEECH', 'asr_no_speech'); }

@@ -52,8 +52,7 @@ export class EditorSession {
         timer = setTimeout(() => {
           this.cancellation.cancel();
           resolve(this.failure('TIMEOUT', 'operation_timeout'));
-        }, operation === 'recognize' && this.project ? Math.max(120000,
-          Math.ceil(this.project.sourceDurationUs / 1000) * 2 + 120000) : 30000);
+        }, this.operationTimeout(operation, auditionTakeId));
       });
       const snapshot: Project | undefined = this.project ? copyProject(this.project) : undefined;
       let manifest: RenderPiece[] = snapshot ? compileTimeline(snapshot) : [];
@@ -120,6 +119,27 @@ export class EditorSession {
       this.committing = false;
       this.busy = false;
     }
+  }
+  private operationTimeout(operation: string, takeId: string): number {
+    if (operation === 'import' || operation === 'export') { return 600000; } // System picker includes user decision time.
+    if (!this.project) { return 30000; }
+    if (operation === 'recognize') {
+      return Math.max(120000, Math.ceil(this.project.sourceDurationUs / 1000) * 2 + 120000);
+    }
+    if (operation === 'preview') {
+      const manifest: RenderPiece[] = compileTimeline(this.project);
+      const last: RenderPiece = manifest[manifest.length - 1];
+      return Math.max(120000, Math.ceil((last.outputStartUs + last.endUs - last.startUs) / 1000) + 120000);
+    }
+    let durationUs: number = 0;
+    if (operation === 'auditionSource') {
+      const segment: Segment | undefined = this.project.segments.find((s: Segment) => s.id === this.selectedSegmentId);
+      if (segment) { durationUs = segment.endUs - segment.startUs; }
+    } else if (operation === 'auditionTake') {
+      const take: Take | undefined = this.project.takes.find((t: Take) => t.id === takeId);
+      if (take) { durationUs = take.durationUs; }
+    }
+    return Math.max(30000, Math.ceil(durationUs / 1000) + 15000);
   }
   hasAuditionedSelection(): boolean {
     return this.project !== undefined && this.auditionedRevision === this.project.sequence &&

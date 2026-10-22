@@ -1,3 +1,6 @@
+import { cancelDecode } from 'libaudiopcm.so';
+import { decodeAudio } from './AudioDecode';
+import { renderWave } from '../domain/PcmRender';
 import { OfflineSpeech } from './OfflineSpeech';
 import { CapabilityPort, CapabilityRequest, CapabilityResult, Cancellation, Progress } from '../domain/Capabilities';
 import { Project, Segment, Take } from '../domain/Project';
@@ -32,8 +35,15 @@ export class HuaweiCapabilities implements CapabilityPort {
   async execute(request: CapabilityRequest, cancellation: Cancellation,
     progress: (value: Progress) => void): Promise<CapabilityResult> {
     if (cancellation.cancelled) { return this.failure('CANCELLED', 'operation_cancelled'); }
+    if (this.recorder && !['recordPause', 'recordResume', 'recordStop',
+      'retakePause', 'retakeResume', 'retakeStop'].includes(request.operation)) {
+      return this.failure('BUSY', 'operation_busy');
+    }
     progress({ completed: 0, total: 1 });
     try {
+      if (request.operation === 'preview' || request.operation === 'export') {
+        return await this.renderAudio(request, cancellation, progress);
+      }
       if (request.operation === 'recordStart') { return await this.startRecording(cancellation); }
       if (request.operation === 'recordPause') { return await this.pauseRecording(cancellation); }
       if (request.operation === 'recordResume') { return await this.resumeRecording(cancellation); }
@@ -57,6 +67,7 @@ export class HuaweiCapabilities implements CapabilityPort {
     } catch {
       await this.releaseRecorder();
       await this.releasePlayback();
+      if (request.operation === 'preview' || request.operation === 'export') { return this.failure('RENDER_FAILED', 'render_failed'); }
       if (request.operation === 'recognize') { return this.failure('ASR_DECODE_FAILED', 'asr_decode_failed'); }
       if (request.operation === 'import') { return this.failure('IMPORT_FAILED', 'import_failed'); }
       if (request.operation.startsWith('retake')) { return this.failure('RETAKE_FAILED', 'retake_failed'); }
@@ -65,11 +76,6 @@ export class HuaweiCapabilities implements CapabilityPort {
       }
       return this.failure('RECORDING_FAILED', 'recording_failed');
     }
-    // TODO(HUAWEI_API): 接入按 RenderPiece 编辑决策执行的全文 PCM 混音/编码和文档导出。
-    // 输入：不可变源资产、候选资产和微秒时间轴；输出：实际本地音频文件。
-    // 约束：API20、完全离线、进度/取消/错误/资源释放；预览与导出共用 manifest。
-    // 接入前确认官方编码/文档 API 签名、权限、设备限制、生命周期及发布许可。
-    // ASR 已由 OfflineSpeech 接入；官方识别接口不提供词级时间戳或数值置信度。
     return this.failure('CAPABILITY_NOT_INTEGRATED', 'capability_unavailable');
   }
 
@@ -294,7 +300,12 @@ export class HuaweiCapabilities implements CapabilityPort {
     this.ensureDirectory(assetDir);
     this.sourcePath = `${assetDir}/${this.sourceAssetId}.audio`;
     try {
-      await fs.copyFile(uris[0], this.sourcePath);
+      const input: fs.File = fs.openSync(uris[0], fs.OpenMode.READ_ONLY);
+      try {
+        const output: fs.File = fs.openSync(this.sourcePath, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+        try { await fs.copyFile(input.fd, output.fd); fs.fdatasyncSync(output.fd); }
+        finally { fs.closeSync(output); }
+      } finally { fs.closeSync(input); }
       if (cancellation.cancelled) {
         await this.discardPendingAsset();
         return this.failure('CANCELLED', 'operation_cancelled');
@@ -354,15 +365,22 @@ export class HuaweiCapabilities implements CapabilityPort {
     const path: string | undefined = this.assetPath(request.project.id, piece.assetId);
     if (!path || cancellation.cancelled) { return this.failure(cancellation.cancelled ? 'CANCELLED' : 'PLAYBACK_ASSET_NOT_FOUND',
       cancellation.cancelled ? 'operation_cancelled' : 'playback_failed'); }
+    return await this.playFile(path, piece.startUs, piece.endUs, cancellation);
+  }
+
+  private async playFile(path: string, startUs: number, endUs: number,
+    cancellation: Cancellation): Promise<CapabilityResult> {
     const input: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
     this.playerInput = input;
     const player: media.AVPlayer = await media.createAVPlayer();
     this.player = player;
-    const startMs: number = Math.floor(piece.startUs / 1000);
-    const endMs: number = Math.ceil(piece.endUs / 1000);
+    const startMs: number = Math.floor(startUs / 1000);
+    const endMs: number = Math.ceil(endUs / 1000);
     return await new Promise<CapabilityResult>((resolve) => {
       let settled: boolean = false;
       let cancelTimer: number = 0;
+      let preparing: boolean = false;
+      let playbackStarted: boolean = false;
       const finish = async (result: CapabilityResult): Promise<void> => {
         if (settled) { return; }
         settled = true;
@@ -371,8 +389,20 @@ export class HuaweiCapabilities implements CapabilityPort {
         resolve(result);
       };
       const onState = (state: string): void => {
-        if (state === 'error') { finish(this.failure('PLAYBACK_FAILED', 'playback_failed')); }
+        if (settled) { return; }
+        if (state === 'initialized' && !preparing) {
+          preparing = true;
+          void player.prepare().catch(() => finish(this.failure('PLAYBACK_FAILED', 'playback_failed')));
+        } else if (state === 'prepared') {
+          if (startMs > 0) { player.seek(startMs); }
+          else { startPlayback(); }
+        } else if (state === 'error') { finish(this.failure('PLAYBACK_FAILED', 'playback_failed')); }
         else if (state === 'completed') { finish(this.success('audition_completed')); }
+      };
+      const startPlayback = (): void => {
+        if (settled || playbackStarted) { return; }
+        playbackStarted = true;
+        void player.play().catch(() => finish(this.failure('PLAYBACK_FAILED', 'playback_failed')));
       };
       const onError = (): void => { finish(this.failure('PLAYBACK_FAILED', 'playback_failed')); };
       const onTime = (timeMs: number): void => {
@@ -383,6 +413,7 @@ export class HuaweiCapabilities implements CapabilityPort {
       player.on('stateChange', onState);
       player.on('error', onError);
       player.on('timeUpdate', onTime);
+      player.on('seekDone', (_position: number): void => { startPlayback(); });
       const watchCancellation = (): void => {
         if (settled) { return; }
         if (cancellation.cancelled) {
@@ -393,12 +424,76 @@ export class HuaweiCapabilities implements CapabilityPort {
       };
       cancelTimer = setTimeout(watchCancellation, 50);
       player.fdSrc = { fd: input.fd, offset: 0, length: fs.statSync(input.fd).size };
-      void player.prepare().then(async () => {
-        if (settled) { return; }
-        if (startMs > 0) { player.seek(startMs); }
-        await player.play();
-      }).catch(() => { onError(); });
+
     });
+  }
+
+  private async renderAudio(request: CapabilityRequest, cancellation: Cancellation,
+    progress: (value: Progress) => void): Promise<CapabilityResult> {
+    const project: Project | undefined = request.project;
+    if (!project || request.manifest.length === 0 || this.player || !this.context) {
+      return this.failure('RENDER_STATE', 'render_failed');
+    }
+    const sourcePath: string | undefined = this.assetPath(project.id, project.sourceAssetId);
+    if (!sourcePath) { return this.failure('RENDER_ASSET', 'render_failed'); }
+    let source: Int16Array | undefined = undefined;
+    const monitor: number = setInterval(() => { if (cancellation.cancelled) { cancelDecode(); } }, 50);
+    const folder: string = `${this.filesDir}/projects/${project.id}/renders`;
+    const path: string = `${folder}/render-${project.sequence}-${Date.now()}.wav`;
+    try {
+      const wave: ArrayBuffer = await renderWave(request.manifest, async (id: string): Promise<Int16Array | undefined> => {
+        if (id === project.sourceAssetId && source) { return source; }
+        const asset: string | undefined = this.assetPath(project.id, id);
+        if (!asset || cancellation.cancelled) { throw new Error(cancellation.cancelled ? 'CANCELLED' : 'RENDER_ASSET'); }
+        const file: fs.File = fs.openSync(asset, fs.OpenMode.READ_ONLY);
+        let pcm: Int16Array;
+        try { pcm = new Int16Array(await decodeAudio(file.fd, fs.statSync(file.fd).size)); }
+        finally { fs.closeSync(file); }
+        if (id === project.sourceAssetId) { source = pcm; }
+        return pcm;
+      }, cancellation, progress);
+      clearInterval(monitor); // No native decode remains; never cancel a later operation while picker waits.
+      if (cancellation.cancelled) { return this.failure('CANCELLED', 'operation_cancelled'); }
+      this.ensureDirectory(folder);
+      const output: fs.File = fs.openSync(path, fs.OpenMode.WRITE_ONLY | fs.OpenMode.CREATE | fs.OpenMode.TRUNC);
+      try {
+        for (let cursor: number = 0; cursor < wave.byteLength;) {
+          if (cancellation.cancelled) { throw new Error('CANCELLED'); }
+          const written: number = fs.writeSync(output.fd, wave.slice(cursor, Math.min(cursor + 1048576, wave.byteLength)));
+          if (written <= 0) { throw new Error('RENDER_WRITE'); }
+          cursor += written;
+          await new Promise<void>((resolve) => setTimeout(resolve, 0));
+        }
+        fs.fdatasyncSync(output.fd);
+      } finally { fs.closeSync(output); }
+      if (cancellation.cancelled) { throw new Error('CANCELLED'); }
+      if (request.operation === 'preview') {
+        return await this.playFile(path, 0, (wave.byteLength - 44) / 2 * 1000000 / 16000, cancellation);
+      }
+      const pickerView = new picker.DocumentViewPicker(this.context);
+      const uris: string[] = await pickerView.save({ newFileNames: [`AudioPatch-r${project.sequence}-${Date.now()}.wav`],
+        fileSuffixChoices: ['WAV|.wav'] });
+      if (uris.length !== 1 || cancellation.cancelled) { throw new Error('CANCELLED'); }
+      const destination: fs.File = fs.openSync(uris[0], fs.OpenMode.WRITE_ONLY | fs.OpenMode.TRUNC);
+      let copied: boolean = false;
+      try {
+        const input: fs.File = fs.openSync(path, fs.OpenMode.READ_ONLY);
+        try { await fs.copyFile(input.fd, destination.fd); }
+        finally { fs.closeSync(input); }
+        fs.fdatasyncSync(destination.fd); copied = !cancellation.cancelled;
+      } finally {
+        fs.closeSync(destination);
+        if (!copied) { try { fs.unlinkSync(uris[0]); } catch { } }
+      }
+      if (!copied) { try { fs.unlinkSync(uris[0]); } catch { } throw new Error('CANCELLED'); }
+      return this.success('export_completed');
+    } catch (error) {
+      return this.failure(cancellation.cancelled || (error as Error).message === 'CANCELLED' ? 'CANCELLED' : 'RENDER_FAILED',
+        cancellation.cancelled || (error as Error).message === 'CANCELLED' ? 'operation_cancelled' : 'render_failed');
+    } finally {
+      clearInterval(monitor);
+      try { fs.unlinkSync(path); } catch { }
+    }
   }
 
   private async releasePlayback(): Promise<void> {

@@ -12,6 +12,7 @@ Module._load = function(request, parent, isMain) {
       OpenMode: { READ_ONLY: 0, WRITE_ONLY: 1, CREATE: 64, TRUNC: 512 },
       readTextSync() { throw { code: 13900002 }; },
       mkdirSync() {}, openSync() { throw new Error('TEST_DEVICE_FILE_PORT'); },
+      readSync() { return 0; },
       writeSync() { throw new Error('TEST_DEVICE_FILE_PORT'); }, fdatasyncSync() {}, closeSync() {},
       renameSync() {}, listFileSync() { return []; }, statSync() { return { size: 0 }; },
       unlinkSync() {}, rmdirSync() {}, copyFile() { return Promise.resolve(); },

@@ -5,7 +5,8 @@ declare module '@kit.CoreFileKit' {
     readTextSync(path: string): string;
     mkdirSync(path: string, recursion: boolean): void;
     openSync(path: string, mode: number): fileIo.File;
-    writeSync(fd: number, text: string): number;
+    readSync(fd: number, bytes: ArrayBuffer, options: {offset: number; length: number}): number;
+    writeSync(fd: number, text: string | ArrayBuffer): number;
     fdatasyncSync(fd: number): void;
     closeSync(file: { fd: number }): void;
     renameSync(from: string, to: string): void;
@@ -16,6 +17,7 @@ declare module '@kit.CoreFileKit' {
     copyFile(src: string | number, dest: string | number): Promise<void>;
   };
   export const picker: {
+    DocumentViewPicker: new (context: object) => { save(options: {newFileNames: string[]; fileSuffixChoices: string[]}): Promise<string[]> };
     AudioViewPicker: new (context: object) => { select(options?: object): Promise<string[]> };
   };
 }

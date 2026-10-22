@@ -12,6 +12,8 @@ struct Index {
   @State busy: boolean = false;
   @State message: string = '';
   @State lastOperation: string = '';
+  @State retryable: boolean = false;
+  @State lastTakeId: string = '';
   @State hasProject: boolean = false;
   @State segments: Segment[] = [];
   @State takes: Take[] = [];
@@ -47,7 +49,7 @@ struct Index {
   }
 
   async loadProjects(): Promise<void> {
-    if (this.busy) { return; }
+    if (!this.canEdit()) { return; }
     this.busy = true; this.message = ''; this.lastOperation = '';
     try {
       this.projects = await AppServices.projects.listProjects(); this.projectsLoaded = true;
@@ -58,18 +60,18 @@ struct Index {
   }
 
   async openProject(id: string): Promise<void> {
-    if (this.busy) { return; }
+    if (!this.canEdit()) { return; }
     this.busy = true; this.lastOperation = '';
     const result: CapabilityResult = await this.session.openProject(id);
     this.busy = false; this.message = result.messageKey; this.reviewMode = false; this.refresh();
   }
 
   requestDelete(id: string): void {
-    if (!this.busy) { this.pendingDeleteId = id; this.message = ''; }
+    if (this.canEdit()) { this.pendingDeleteId = id; this.message = ''; }
   }
 
   async deleteProject(id: string): Promise<void> {
-    if (this.busy) { return; }
+    if (!this.canEdit()) { return; }
     this.busy = true; this.message = '';
     try {
       await AppServices.projects.deleteProject(id);
@@ -83,6 +85,10 @@ struct Index {
   }
 
   aboutToDisappear(): void { this.session.close(); }
+
+  private canEdit(): boolean {
+    return !this.busy && this.recordingState === 'idle' && this.retakeState === 'idle';
+  }
 
   private refresh(): void {
     this.hasProject = this.session.project !== undefined;
@@ -98,7 +104,7 @@ struct Index {
   }
 
   private select(segment: Segment): void {
-    if (this.busy) { return; }
+    if (!this.canEdit()) { return; }
     this.session.selectedSegmentId = segment.id;
     this.draftText = segment.text;
     this.startSeconds = (segment.startUs / 1000000).toString();
@@ -119,7 +125,7 @@ struct Index {
 
   async perform(operation: string, takeId: string = ''): Promise<void> {
     if (this.busy) { return; }
-    this.lastOperation = operation; this.busy = true; this.message = '';
+    this.lastOperation = operation; this.lastTakeId = takeId; this.retryable = false; this.busy = true; this.message = '';
     this.completed = 0; this.total = 1;
     const result: CapabilityResult = await this.session.run(operation, this.script, (value: Progress) => {
       this.completed = value.completed; this.total = value.total;
@@ -134,11 +140,11 @@ struct Index {
     else if (result.ok && operation === 'retakeStop') { this.retakeState = 'idle'; }
     else if (!result.ok && operation.startsWith('record')) { this.recordingState = 'idle'; }
     else if (!result.ok && operation.startsWith('retake')) { this.retakeState = 'idle'; }
-    this.busy = false; this.message = result.messageKey; this.refresh();
+    this.busy = false; this.message = result.messageKey; this.retryable = !result.ok && result.recoverable; this.refresh();
   }
 
   async edit(action: string, takeId: string = ''): Promise<void> {
-    if (this.busy) { return; }
+    if (!this.canEdit()) { return; }
     this.busy = true; this.message = ''; this.lastOperation = '';
     let result: CapabilityResult;
     if (action === 'text') { result = await this.session.changeText(this.draftText); }
@@ -183,12 +189,15 @@ struct Index {
     if (this.message !== '') {
       Column({ space: 12 }) {
         if (this.message === 'capability_unavailable') { Text($r('app.string.capability_unavailable')) }
+        else if (this.message === 'render_failed') { Text($r('app.string.render_failed')) }
+        else if (this.message === 'export_completed') { Text($r('app.string.export_completed')) }
         else if (this.message === 'asr_existing_edits') { Text($r('app.string.asr_existing_edits')) }
         else if (this.message === 'asr_no_speech') { Text($r('app.string.asr_no_speech')) }
         else if (this.message === 'asr_engine_failed') { Text($r('app.string.asr_engine_failed')) }
         else if (this.message === 'asr_decode_failed') { Text($r('app.string.asr_decode_failed')) }
         else if (this.message === 'asr_audio_too_long') { Text($r('app.string.asr_audio_too_long')) }
         else if (this.message === 'asr_completed') { Text($r('app.string.asr_completed')) }
+        else if (this.message === 'operation_busy') { Text($r('app.string.operation_busy')) }
         else if (this.message === 'operation_cancelled') { Text($r('app.string.operation_cancelled')) }
         else if (this.message === 'operation_timeout') { Text($r('app.string.operation_timeout')) }
         else if (this.message === 'review_required') { Text($r('app.string.review_required')) }
@@ -211,13 +220,14 @@ struct Index {
         else if (this.message === 'imported') { Text($r('app.string.imported')) }
         else if (this.message === 'playback_failed') { Text($r('app.string.playback_failed')) }
         else if (this.message === 'audition_completed') { Text($r('app.string.audition_completed')) }
+        else if (this.message === 'retake_started') { Text($r('app.string.retake_started')) }
+        else if (this.message === 'retake_paused') { Text($r('app.string.retake_paused')) }
+        else if (this.message === 'retake_saved') { Text($r('app.string.saved')) }
         else if (this.message === 'retake_failed') { Text($r('app.string.retake_failed')) }
         else if (this.message === 'retake_too_short') { Text($r('app.string.retake_too_short')) }
         else { Text($r('app.string.operation_failed')) }
-        if (this.lastOperation !== '' && this.message !== 'saved' && this.message !== 'recovery_warning' &&
-          this.message !== 'audition_completed' &&
-          this.lastOperation !== 'auditionTake') {
-          Button($r('app.string.retry')).enabled(!this.busy).onClick(() => this.perform(this.lastOperation))
+        if (this.retryable && this.lastOperation !== '') {
+          Button($r('app.string.retry')).enabled(this.canEdit()).onClick(() => this.perform(this.lastOperation, this.lastTakeId))
         }
       }.width('100%').alignItems(HorizontalAlign.Start).padding(16)
     }
@@ -227,19 +237,19 @@ struct Index {
   rangeFields() {
     Text($r('app.string.source_seconds'))
     TextInput({ placeholder: $r('app.string.start_seconds'), text: this.startSeconds })
-      .enabled(!this.busy).onChange((value: string) => this.startSeconds = value)
+      .enabled(this.canEdit()).onChange((value: string) => this.startSeconds = value)
     TextInput({ placeholder: $r('app.string.end_seconds'), text: this.endSeconds })
-      .enabled(!this.busy).onChange((value: string) => this.endSeconds = value)
+      .enabled(this.canEdit()).onChange((value: string) => this.endSeconds = value)
   }
 
   @Builder
   selectedEditor() {
     Text($r('app.string.text_only_notice')).fontColor('#6C746F')
     TextArea({ placeholder: $r('app.string.edit_text'), text: this.draftText }).height(100)
-      .enabled(!this.busy).onChange((value: string) => this.draftText = value)
-    Button($r('app.string.save_text')).height(48).enabled(!this.busy).onClick(() => this.edit('text'))
+      .enabled(this.canEdit()).onChange((value: string) => this.draftText = value)
+    Button($r('app.string.save_text')).height(48).enabled(this.canEdit()).onClick(() => this.edit('text'))
     if (this.retakeState === 'idle') {
-      Button($r('app.string.retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakeStart'))
+      Button($r('app.string.retake')).height(48).enabled(this.canEdit()).onClick(() => this.perform('retakeStart'))
     } else {
       Text(this.retakeState === 'paused' ? $r('app.string.retake_paused') : $r('app.string.retake_started'))
       if (this.retakeState === 'recording') {
@@ -249,20 +259,20 @@ struct Index {
       }
       Button($r('app.string.finish_retake')).height(48).enabled(!this.busy).onClick(() => this.perform('retakeStop'))
     }
-    Button($r('app.string.audition_source')).height(48).enabled(!this.busy).onClick(() => this.perform('auditionSource'))
+    Button($r('app.string.audition_source')).height(48).enabled(this.canEdit()).onClick(() => this.perform('auditionSource'))
     if (this.reviewMode) {
       Row({ space: 8 }) {
-        Checkbox().select(this.checkedText).enabled(!this.busy).onChange((value: boolean) => this.checkedText = value)
+        Checkbox().select(this.checkedText).enabled(this.canEdit()).onChange((value: boolean) => this.checkedText = value)
         Text($r('app.string.confirm_text'))
       }
       Row({ space: 8 }) {
-        Checkbox().select(this.checkedRange).enabled(this.auditioned && !this.busy)
+        Checkbox().select(this.checkedRange).enabled(this.auditioned && this.canEdit())
           .onChange((value: boolean) => this.checkedRange = value)
         Text($r('app.string.confirm_range'))
       }
       if (!this.auditioned) { Text($r('app.string.audition_required')) }
       Button($r('app.string.confirm_review')).height(48)
-        .enabled(this.checkedText && this.checkedRange && this.auditioned && !this.busy).onClick(() => this.edit('review'))
+        .enabled(this.checkedText && this.checkedRange && this.auditioned && this.canEdit()).onClick(() => this.edit('review'))
     }
     Text($r('app.string.take_versions')).fontWeight(FontWeight.Medium)
     ForEach(this.takes, (take: Take, index: number) => {
@@ -270,23 +280,23 @@ struct Index {
         Text($r('app.string.take_number', (index + 1).toString()))
         Button($r('app.string.audition_take')).height(48).enabled(!this.busy)
           .onClick(() => this.perform('auditionTake', take.id))
-        Button($r('app.string.adopt_take')).height(48).enabled(!this.busy).onClick(() => this.edit('take', take.id))
+        Button($r('app.string.adopt_take')).height(48).enabled(this.canEdit()).onClick(() => this.edit('take', take.id))
       }.width('100%').padding(12).backgroundColor('#E7EEEB')
     }, (take: Take) => take.id)
-    Button($r('app.string.restore_source')).height(48).enabled(!this.busy).onClick(() => this.edit('source'))
-    Button($r('app.string.advanced_edit')).height(48).enabled(!this.busy).onClick(() => this.advanced = !this.advanced)
+    Button($r('app.string.restore_source')).height(48).enabled(this.canEdit()).onClick(() => this.edit('source'))
+    Button($r('app.string.advanced_edit')).height(48).enabled(this.canEdit()).onClick(() => this.advanced = !this.advanced)
     if (this.advanced) {
       Text($r('app.string.range_change_notice'))
       this.rangeFields()
-      Button($r('app.string.save_range')).height(48).enabled(!this.busy).onClick(() => this.edit('range'))
+      Button($r('app.string.save_range')).height(48).enabled(this.canEdit()).onClick(() => this.edit('range'))
       TextInput({ placeholder: $r('app.string.split_seconds'), text: this.splitSeconds })
-        .enabled(!this.busy).onChange((value: string) => this.splitSeconds = value)
+        .enabled(this.canEdit()).onChange((value: string) => this.splitSeconds = value)
       TextInput({ placeholder: $r('app.string.left_text'), text: this.leftText })
-        .enabled(!this.busy).onChange((value: string) => this.leftText = value)
+        .enabled(this.canEdit()).onChange((value: string) => this.leftText = value)
       TextInput({ placeholder: $r('app.string.right_text'), text: this.rightText })
-        .enabled(!this.busy).onChange((value: string) => this.rightText = value)
-      Button($r('app.string.split_segment')).height(48).enabled(!this.busy).onClick(() => this.edit('split'))
-      Button($r('app.string.merge_next')).height(48).enabled(!this.busy).onClick(() => this.edit('merge'))
+        .enabled(this.canEdit()).onChange((value: string) => this.rightText = value)
+      Button($r('app.string.split_segment')).height(48).enabled(this.canEdit()).onClick(() => this.edit('split'))
+      Button($r('app.string.merge_next')).height(48).enabled(this.canEdit()).onClick(() => this.edit('merge'))
     }
   }
 
@@ -298,7 +308,7 @@ struct Index {
           Text($r('app.string.home_title')).fontSize(24).fontWeight(FontWeight.Medium).width('100%')
           if (this.recordingState === 'idle') {
             Button($r('app.string.record_full')).width('100%').height(52).backgroundColor('#167D65')
-              .enabled(!this.busy).onClick(() => this.perform('recordStart'))
+              .enabled(this.canEdit()).onClick(() => this.perform('recordStart'))
           } else {
             Text(this.recordingState === 'paused' ? $r('app.string.recording_paused') :
               $r('app.string.recording_started')).fontWeight(FontWeight.Medium)
@@ -313,7 +323,7 @@ struct Index {
               .enabled(!this.busy).onClick(() => this.perform('recordStop'))
           }
           Button($r('app.string.import_audio')).width('100%').height(52).backgroundColor('#285B82')
-            .enabled(!this.busy).onClick(() => this.perform('import'))
+            .enabled(this.canEdit()).onClick(() => this.perform('import'))
           Button($r('app.string.optional_inputs')).type(ButtonType.Normal).width('100%')
             .backgroundColor('#E7EEEB').fontColor('#24372E').onClick(() => this.optionalOpen = !this.optionalOpen)
           if (this.optionalOpen) {
@@ -328,31 +338,31 @@ struct Index {
           ForEach(this.projects, (project: Project) => {
             Column({ space: 8 }) {
               Button($r('app.string.open_project', new Date(project.updatedAtMs).toLocaleString(), (project.sourceDurationUs / 1000000).toFixed(2))).height(52)
-                .enabled(!this.busy).onClick(() => this.openProject(project.id))
+                .enabled(this.canEdit()).onClick(() => this.openProject(project.id))
               if (this.pendingDeleteId === project.id) {
                 Text($r('app.string.delete_project_confirm')).width('100%').fontColor('#8A2E2E')
                 Row({ space: 8 }) {
-                  Button($r('app.string.confirm_delete')).height(44).enabled(!this.busy)
+                  Button($r('app.string.confirm_delete')).height(44).enabled(this.canEdit())
                     .onClick(() => this.deleteProject(project.id))
-                  Button($r('app.string.cancel_delete')).height(44).enabled(!this.busy)
+                  Button($r('app.string.cancel_delete')).height(44).enabled(this.canEdit())
                     .onClick(() => this.pendingDeleteId = '')
                 }
               } else {
-                Button($r('app.string.delete_project')).height(44).enabled(!this.busy)
+                Button($r('app.string.delete_project')).height(44).enabled(this.canEdit())
                   .onClick(() => this.requestDelete(project.id))
               }
             }.width('100%').padding(12).backgroundColor('#FFFFFF')
           }, (project: Project) => project.id)
-          Button($r('app.string.restore')).height(48).enabled(!this.busy).onClick(() => this.loadProjects())
+          Button($r('app.string.restore')).height(48).enabled(this.canEdit()).onClick(() => this.loadProjects())
         } else {
           if (this.reviewMode) {
             Text($r('app.string.review_title')).fontSize(24)
             Text($r('app.string.pending_count', this.pendingCount.toString()))
-            Button($r('app.string.back_editor')).height(48).enabled(!this.busy).onClick(() => this.reviewMode = false)
+            Button($r('app.string.back_editor')).height(48).enabled(this.canEdit()).onClick(() => this.reviewMode = false)
           } else { Text($r('app.string.editor')).fontSize(24) }
           if (this.segments.length === 0) {
             Text($r('app.string.no_segments'))
-            Button($r('app.string.recognize')).height(48).enabled(!this.busy).onClick(() => this.perform('recognize'))
+            Button($r('app.string.recognize')).height(48).enabled(this.canEdit()).onClick(() => this.perform('recognize'))
           }
           ForEach(this.segments, (segment: Segment) => {
             Column({ space: 8 }) {
@@ -371,21 +381,21 @@ struct Index {
           if (this.selectedId === '') { Text($r('app.string.select_sentence')).fontColor('#6C746F') }
           if (this.selectedId !== '' && !this.manual) { this.selectedEditor() }
           if (!this.reviewMode) {
-            Button($r('app.string.manual_segment')).height(48).enabled(!this.busy).onClick(() => {
+            Button($r('app.string.manual_segment')).height(48).enabled(this.canEdit()).onClick(() => {
               this.manual = !this.manual;
               this.draftText = ''; this.startSeconds = ''; this.endSeconds = '';
               this.session.selectedSegmentId = ''; this.refresh();
             })
             if (this.manual) {
               TextInput({ placeholder: $r('app.string.edit_text'), text: this.draftText })
-                .enabled(!this.busy).onChange((value: string) => this.draftText = value)
+                .enabled(this.canEdit()).onChange((value: string) => this.draftText = value)
               this.rangeFields()
-              Button($r('app.string.create_segment')).height(48).enabled(!this.busy).onClick(() => this.edit('manual'))
+              Button($r('app.string.create_segment')).height(48).enabled(this.canEdit()).onClick(() => this.edit('manual'))
             }
           }
           Button($r('app.string.undo')).height(48).enabled(this.undoAvailable && !this.busy).onClick(() => this.edit('undo'))
-          Button($r('app.string.preview')).height(48).enabled(!this.busy).onClick(() => this.perform('preview'))
-          Button($r('app.string.export')).height(48).enabled(!this.busy).onClick(() => this.exportOrReview())
+          Button($r('app.string.preview')).height(48).enabled(this.canEdit()).onClick(() => this.perform('preview'))
+          Button($r('app.string.export')).height(48).enabled(this.canEdit()).onClick(() => this.exportOrReview())
         }
         this.status()
       }.width('100%').alignItems(HorizontalAlign.Start).padding(24)

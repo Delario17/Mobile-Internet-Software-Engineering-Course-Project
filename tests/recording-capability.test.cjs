@@ -34,10 +34,12 @@ const fileIo = {
   mkdirSync() { if (existingAssetDirectory) { throw { code: 13900015 }; } },
   openSync(path) { openedPaths.push(path); return { fd: nextFd++ }; },
   closeSync(file) { closed.push(file.fd); },
+  readSync() {return 0;},
   statSync() { return { size: 12 }; },
   listFileSync(path) { return path.includes('p-retake') && retakeAssetName !== '' ? [retakeAssetName] : ['source-play.m4a']; },
   unlinkSync(path) { unlinked.push(path); },
-  async copyFile(src, dest) { copied.push({ src, dest }); },
+  async copyFile(src, dest) { assert.equal(typeof src, 'number', 'picker URI must be opened and copied by FD'); copied.push({ src, dest }); },
+  fdatasyncSync() {},
   rmdirSync() {}
 };
 
@@ -55,11 +57,22 @@ global.__arktsTestKits = {
     async createAVPlayer() {
       playerInstance = {
         state: 'idle',
+        events: [],
         callbacks: {},
         on(type, callback) { this.callbacks[type] = callback; },
         off() {},
-        async prepare() { this.state = 'prepared'; },
-        async play() { this.state = 'playing'; },
+        set fdSrc(value) {
+          this.source = value;
+          setImmediate(() => { if (this.state === 'idle') {
+            this.events.push('initialized'); this.state = 'initialized'; this.callbacks.stateChange('initialized');
+          } });
+        },
+        async prepare() {
+          assert.equal(this.state, 'initialized', 'prepare must wait for initialized');
+          this.events.push('prepare'); this.state = 'prepared'; this.callbacks.stateChange('prepared');
+        },
+        seek(time) { this.events.push(['seek', time]); setImmediate(() => {this.events.push('seekDone');this.callbacks.seekDone(time);}); },
+        async play() { this.events.push('play'); this.state = 'playing'; },
         async stop() { this.state = 'stopped'; },
         async release() { this.state = 'released'; }
       };
@@ -149,8 +162,9 @@ test('import copies the selected URI and requires a real positive duration', asy
   assert.equal(result.ok, true);
   assert.equal(result.project.sourceDurationUs, 2400000);
   assert.equal(copied.length, 1);
-  assert.match(copied[0].src, /^file:\/\//);
-  assert.match(copied[0].dest, /\/projects\/p-[0-9]+\/assets\/source-[0-9]+\.audio$/);
+  assert.equal(typeof copied[0].src, 'number');
+  assert.equal(typeof copied[0].dest, 'number');
+  assert(openedPaths.some(p => /assets\/source-[0-9]+\.audio$/.test(p)));
 });
 
 test('source audition waits for AVPlayer completed state before succeeding', async () => {
@@ -158,8 +172,8 @@ test('source audition waits for AVPlayer completed state before succeeding', asy
   const project = new (require('../entry/src/main/ets/domain/Project.ts').Project)('p', 'source-play', 2400000);
   const pending = capabilities.execute({ operation: 'auditionSource', selectedSegmentId: 's', auditionTakeId: '',
     project, manifest: [{ assetId: 'source-play', startUs: 0, endUs: 1000000, outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
-  await Promise.resolve();
-  await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
   assert.equal(playerInstance.state, 'playing');
   let finished = false;
   pending.then(() => { finished = true; });
@@ -224,6 +238,8 @@ test('retake records an independent candidate and never replaces the source asse
     project: stopped.project, manifest: [{ assetId: stopped.project.takes[0].assetId, startUs: 0, endUs: 900000,
       outputStartUs: 0, fadeInUs: 0, fadeOutUs: 0 }], optionalScript: '' }, new Cancellation(), () => {});
   await Promise.resolve(); await Promise.resolve();
+  await new Promise(resolve => setImmediate(resolve));
+  await new Promise(resolve => setImmediate(resolve));
   playerInstance.callbacks.timeUpdate(900);
   assert.equal((await audition).ok, true);
 });
@@ -263,4 +279,84 @@ test('recorder interruption releases resources and deletes an uncommitted retake
   assert.equal(interruptionNotified, true);
   assert.equal(latestRecorder.state, 'released');
   assert(unlinked.includes(candidatePath));
+});
+
+test('active capture rejects playback/import/recognition without stopping or deleting recording', async () => {
+  permissionCalls = 1;
+  const cap = new HuaweiCapabilities({}, '/private');
+  assert.equal((await cap.execute(request('recordStart'), new Cancellation(), () => {})).ok, true);
+  const before = unlinked.length;
+  for (const operation of ['auditionSource', 'import', 'recognize']) {
+    assert.equal((await cap.execute(request(operation), new Cancellation(), () => {})).errorCode, 'BUSY');
+    assert.equal(latestRecorder.state, 'started');
+    assert.equal(unlinked.length, before);
+  }
+  await cap.release();
+});
+
+
+test('nonzero audition waits for asynchronous seekDone before play; cancel releases playback', async () => {
+  const cap = new HuaweiCapabilities({}, '/private');
+  const project = new (require('../entry/src/main/ets/domain/Project.ts').Project)('p','source-play',5000000);
+  const cancel = new Cancellation();
+  const result = cap.execute({...request('auditionSource'), project, manifest:[{
+    assetId:'source-play', startUs:1250000, endUs:2500000, outputStartUs:0, fadeInUs:0, fadeOutUs:0
+  }]}, cancel,()=>{});
+  for(let i=0;i<4;i++) await new Promise(resolve=>setImmediate(resolve));
+  assert.deepEqual(playerInstance.events,['initialized','prepare',['seek',1250],'seekDone','play']);
+  cancel.cancel();
+  assert.equal((await result).errorCode,'CANCELLED');
+  assert.equal(playerInstance.state,'released');
+});
+
+test('WAV preview and export render identical bytes and release temporary files', async () => {
+  const {Project}=require('../entry/src/main/ets/domain/Project.ts');
+  const audio={async decode(){return new Int16Array(1600).fill(1000).buffer;},cancelDecode(){}};
+  global.__arktsTestKits.audioPcm=audio;
+  // Native module binding is loaded once; reload adapter so this test owns the decode port.
+  delete require.cache[require.resolve('../entry/src/main/ets/infrastructure/HuaweiCapabilities.ts')];
+  delete require.cache[require.resolve('../entry/src/main/ets/infrastructure/AudioDecode.ts')];
+  const Cap=require('../entry/src/main/ets/infrastructure/HuaweiCapabilities.ts').HuaweiCapabilities;
+  const write=fileIo.writeSync,sync=fileIo.fdatasyncSync;
+  const chunks=[];
+  fileIo.writeSync=(fd,data)=>{chunks.push(Buffer.from(data));return data.byteLength;};fileIo.fdatasyncSync=()=>{};
+  global.__arktsTestKits.coreFileKit.picker.DocumentViewPicker=class{async save(){return ['file://destination.wav'];}};
+  const p=new Project('p','source-play',100000);
+  const req={...request('preview'),project:p,manifest:[{assetId:'source-play',startUs:0,endUs:100000,outputStartUs:0,fadeInUs:0,fadeOutUs:0}]};
+  const cap=new Cap({},'/private');
+  try {
+    const pending=cap.execute(req,new Cancellation(),()=>{});
+    for(let i=0;i<10;i++)await new Promise(resolve=>setTimeout(resolve,2));
+    assert.equal(playerInstance.state,'playing');playerInstance.callbacks.timeUpdate(100);
+    assert.equal((await pending).ok,true);
+    const preview=Buffer.concat(chunks);chunks.length=0;
+    const out=await cap.execute({...req,operation:'export'},new Cancellation(),()=>{});
+    assert.equal(out.messageKey,'export_completed');assert.deepEqual(Buffer.concat(chunks),preview);
+    assert.equal(preview.toString('ascii',0,4),'RIFF');
+    assert.equal(unlinked.filter(p=>p.includes('/renders/')).length>=2,true);
+  }finally{fileIo.writeSync=write;fileIo.fdatasyncSync=sync;}
+});
+
+
+test('cancelled export waiting for save picker cannot cancel later native decoding', async () => {
+  let cancelled=0,finishSave;
+  global.__arktsTestKits.audioPcm={async decode(){return new Int16Array(1600).buffer;},cancelDecode(){cancelled++;}};
+  delete require.cache[require.resolve('../entry/src/main/ets/infrastructure/HuaweiCapabilities.ts')];
+  delete require.cache[require.resolve('../entry/src/main/ets/infrastructure/AudioDecode.ts')];
+  const Cap=require('../entry/src/main/ets/infrastructure/HuaweiCapabilities.ts').HuaweiCapabilities;
+  const {Project}=require('../entry/src/main/ets/domain/Project.ts');
+  const write=fileIo.writeSync,sync=fileIo.fdatasyncSync;
+  fileIo.writeSync=(fd,data)=>data.byteLength;fileIo.fdatasyncSync=()=>{};
+  global.__arktsTestKits.coreFileKit.picker.DocumentViewPicker=class{save(){return new Promise(resolve=>{finishSave=resolve;});}};
+  const token=new Cancellation();
+  try {
+    const pending=new Cap({},'/private').execute({...request('export'),project:new Project('p','source-play',100000),manifest:[{assetId:'source-play',startUs:0,endUs:100000,outputStartUs:0,fadeInUs:0,fadeOutUs:0}]},token,()=>{});
+    for(let i=0;i<100&&!finishSave;i++)await new Promise(resolve=>setTimeout(resolve,2));
+    assert.equal(typeof finishSave,'function');token.cancel();
+    await new Promise(resolve=>setTimeout(resolve,110));
+    assert.equal(cancelled,0,'pending picker must not retain process-global decoder cancellation');
+    const {decodeAudio}=require('../entry/src/main/ets/infrastructure/AudioDecode.ts');
+    assert.equal((await decodeAudio(1,100)).byteLength,3200);
+    finishSave([]);assert.equal((await pending).errorCode,'CANCELLED');
+  } finally {fileIo.writeSync=write;fileIo.fdatasyncSync=sync;}
 });

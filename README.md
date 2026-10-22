@@ -26,4 +26,4 @@ pnpm run check
 
 ## 当前交付范围
 
-以 [实现进度](docs/implementation-status.md) 为准。完整录音、导入、源音频/候选试听、局部重录和中文离线自动识别已接入官方系统能力。识别使用 CoreSpeechKit offline 模式，真实 PCM 经停顿分窗后生成待确认句段；不提供词级精确时间戳或数值置信度。全文混音预览与导出仍待接入。没有生产演示转写或云端回退。操作与验收见 [离线识别案例](docs/offline-asr-acceptance.md)。正式签名仍需开发者账号/设备授权。
+以 [实现进度](docs/implementation-status.md) 为准。完整录音、导入、源音频/候选试听、局部重录和中文离线自动识别已接入官方系统能力。识别使用 CoreSpeechKit offline 模式，真实 PCM 经停顿分窗后生成待确认句段；不提供词级精确时间戳或数值置信度。全文预览与本地WAV导出已接入共享PCM渲染管线；逐功能实测状态及未验项见[功能测试矩阵](docs/functional-test-matrix.md)。没有生产演示转写或云端回退。操作与验收见 [离线识别案例](docs/offline-asr-acceptance.md)。正式签名仍需开发者账号/设备授权。
