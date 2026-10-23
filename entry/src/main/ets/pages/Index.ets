@@ -86,6 +86,27 @@ struct Index {
 
   aboutToDisappear(): void { this.session.close(); }
 
+  private async returnHome(): Promise<void> {
+    if (!this.canEdit()) { return; }
+    this.busy = true;
+    await this.session.close();
+    this.session = new EditorSession();
+    this.reviewMode = false; this.manual = false; this.advanced = false;
+    this.checkedText = false; this.checkedRange = false;
+    this.draftText = ''; this.pendingDeleteId = ''; this.retryable = false;
+    this.refresh();
+    this.busy = false;
+    await this.loadProjects();
+  }
+
+  onBackPress(): boolean {
+    if (!this.hasProject) { return false; }
+    if (!this.canEdit()) { return true; }
+    if (this.reviewMode) { this.reviewMode = false; }
+    else { this.returnHome(); }
+    return true;
+  }
+
   private canEdit(): boolean {
     return !this.busy && this.recordingState === 'idle' && this.retakeState === 'idle';
   }
@@ -301,6 +322,11 @@ struct Index {
   }
 
   build() {
+    Column() {
+      if (this.hasProject) {
+        Button($r('app.string.back_home')).height(48).margin({ left: 24, top: 8, bottom: 8 })
+          .enabled(this.canEdit()).onClick(() => this.returnHome())
+      }
     Scroll() {
       Column({ space: 20 }) {
         Text($r('app.string.app_name')).fontSize(28).fontWeight(FontWeight.Bold).fontColor('#167D65')
@@ -399,6 +425,7 @@ struct Index {
         }
         this.status()
       }.width('100%').alignItems(HorizontalAlign.Start).padding(24)
-    }.width('100%').height('100%').backgroundColor('#F6F8F7')
+    }.width('100%').layoutWeight(1)
+    }.width('100%').height('100%').alignItems(HorizontalAlign.Start).backgroundColor('#F6F8F7')
   }
 }

@@ -1,107 +1,428 @@
-{ "string": [
-  { "name": "module_desc", "value": "本地音频编辑" },
-  { "name": "home_title", "value": "录完一整段，只重录其中一句" },
-  { "name": "record_full", "value": "完整录制" },
-  { "name": "pause_recording", "value": "暂停录制" },
-  { "name": "resume_recording", "value": "继续录制" },
-  { "name": "finish_recording", "value": "结束并保存" },
-  { "name": "recording_started", "value": "正在录制整段音频" },
-  { "name": "recording_paused", "value": "录制已暂停" },
-  { "name": "recording_resumed", "value": "已继续录制" },
-  { "name": "recording_failed", "value": "录音失败，未创建项目。请检查麦克风和可用空间后重试。" },
-  { "name": "import_failed", "value": "导入失败，文件可能不受支持或已损坏。" },
-  { "name": "imported", "value": "音频已导入" },
-  { "name": "playback_failed", "value": "播放失败，未确认试听结果。" },
-  { "name": "audition_completed", "value": "试听已完成" },
-  { "name": "retake_failed", "value": "重录失败，源录音未被修改。" },
-  { "name": "retake_too_short", "value": "这段重录不足 0.3 秒，已丢弃。源录音保持不变。" },
-  { "name": "retake_started", "value": "正在重录当前句段" },
-  { "name": "retake_paused", "value": "重录已暂停" },
-  { "name": "pause_retake", "value": "暂停重录" },
-  { "name": "resume_retake", "value": "继续重录" },
-  { "name": "finish_retake", "value": "完成并保存候选" },
-  { "name": "microphone_denied", "value": "当前运行环境没有可用的麦克风权限，无法录音。DevEco 预览器不支持真实录音；请在官方模拟器或真机中允许麦克风权限后重试。" },
-  { "name": "microphone_reason", "value": "用于录制完整音频和局部重录" },
-  { "name": "import_audio", "value": "导入音频" },
-  { "name": "optional_inputs", "value": "讲稿、提纲与专业词（可选）" },
-  { "name": "script_placeholder", "value": "讲稿、提纲或专业词" },
-  { "name": "projects", "value": "我的项目" },
-  { "name": "empty_projects", "value": "还没有录音项目" },
-  { "name": "restore", "value": "重新加载项目" },
-  { "name": "delete_project", "value": "删除项目" },
-  { "name": "delete_project_confirm", "value": "删除后会清理源录音、修订和本地编辑记录，且无法恢复。确定删除这个项目吗？" },
-  { "name": "confirm_delete", "value": "确认删除" },
-  { "name": "cancel_delete", "value": "取消删除" },
-  { "name": "project_deleted", "value": "项目和本地录音已删除" },
-  { "name": "project_delete_failed", "value": "项目删除失败，原有录音和编辑记录仍保留。" },
-  { "name": "cancel", "value": "取消" },
-  { "name": "retry", "value": "重试" },
-  { "name": "processing", "value": "正在处理" },
-  { "name": "capability_unavailable", "value": "此功能尚未接入设备能力，未创建录音或修改项目。" },
-  { "name": "operation_cancelled", "value": "操作已取消" },
-  { "name": "operation_busy", "value": "请等待当前操作完成" },
-  { "name": "operation_failed", "value": "操作失败，项目未更新，请重试。" },
-  { "name": "project_required", "value": "请先录制或导入音频" },
-  { "name": "review_required", "value": "请先核对识别文字与音频边界" },
-  { "name": "editor", "value": "句段编辑" },
-  { "name": "select_sentence", "value": "请选择要重录的句段" },
-  { "name": "retake", "value": "重录所选句段" },
-  { "name": "preview", "value": "全文预览" },
-  { "name": "export", "value": "导出音频" },
-  { "name": "recognize", "value": "识别与分句" },
-  { "name": "no_segments", "value": "尚未生成识别句段" },
-  { "name": "segment_required", "value": "请选择要重录的句段" },
-  { "name": "confirm_text", "value": "已核对识别文字" },
-  { "name": "confirm_range", "value": "已核对音频起止边界" },
-  { "name": "confirm_review", "value": "确认此句" },
-  { "name": "saved", "value": "修改已保存" },
-  { "name": "restore_failed", "value": "未能读取本地项目。请检查设备存储能力是否已接入；原有文件不会被覆盖。" },
-  { "name": "damaged_projects", "value": "部分项目的恢复记录损坏，已保留原文件。你可以继续打开其他有效项目。" },
-  { "name": "open_project", "value": "%s · %s 秒" },
-  { "name": "take_number", "value": "补录版本 %s" },
-  { "name": "save_failed", "value": "未能保存，项目保留上次成功保存的状态。请检查设备存储能力或可用空间后重试。" },
-  { "name": "recovery_warning", "value": "已保留有效项目，但恢复记录不完整。请检查可用空间，继续编辑前核对当前内容。" },
-  { "name": "invalid_edit", "value": "无法应用修改：请检查时间是否在源音频内、起点早于终点且不与其他句段重叠。拆分点必须在句段内部，合并必须选择相邻句段。" },
-  { "name": "audition_required", "value": "请先完整试听源音频范围，再核对声音边界。播放未接入或试听失败时不能确认。" },
-  { "name": "nothing_to_undo", "value": "没有可撤销的修改" },
-  { "name": "text_only_notice", "value": "修改文字只修正显示内容，不改变声音；修改声音请重录。" },
-  { "name": "edit_text", "value": "句段文字" },
-  { "name": "save_text", "value": "保存文字修改" },
-  { "name": "source_seconds", "value": "时间按源音频计算，单位为秒，最多六位小数。" },
-  { "name": "start_seconds", "value": "起点（秒）" },
-  { "name": "end_seconds", "value": "终点（秒）" },
-  { "name": "range_value", "value": "源范围：%s — %s 秒" },
-  { "name": "selected_sentence", "value": "已选中此句" },
-  { "name": "pending_review", "value": "待确认" },
-  { "name": "reviewed", "value": "已确认" },
-  { "name": "using_source", "value": "当前使用原音频" },
-  { "name": "using_take", "value": "当前使用补录版本" },
-  { "name": "audition_source", "value": "试听原音频范围" },
-  { "name": "take_versions", "value": "兼容当前范围的补录版本" },
-  { "name": "audition_take", "value": "试听此版本" },
-  { "name": "adopt_take", "value": "使用此版本" },
-  { "name": "restore_source", "value": "恢复原音频" },
-  { "name": "advanced_edit", "value": "范围、拆分与合并" },
-  { "name": "range_change_notice", "value": "更改范围、拆分或合并会恢复原音频，旧补录仍保留在历史中。保存后可撤销。" },
-  { "name": "save_range", "value": "确认并保存范围" },
-  { "name": "split_seconds", "value": "拆分点（源音频秒数）" },
-  { "name": "left_text", "value": "拆分后前一句文字" },
-  { "name": "right_text", "value": "拆分后后一句文字" },
-  { "name": "split_segment", "value": "确认并拆分" },
-  { "name": "merge_next", "value": "确认并与下一句合并" },
-  { "name": "manual_segment", "value": "手动建立句段" },
-  { "name": "create_segment", "value": "保存手动句段" },
-  { "name": "undo", "value": "撤销上次修改" },
-  { "name": "review_title", "value": "检查并确认" },
-  { "name": "pending_count", "value": "还需确认 %s 句" },
-  { "name": "back_editor", "value": "返回编辑" },
-  { "name": "operation_timeout", "value": "操作超时，请重试。" },
-  { "name": "asr_existing_edits", "value": "已有句段或重录版本。为保护编辑结果，请先撤销已有分句，或另建项目识别。" },
-  { "name": "asr_no_speech", "value": "未识别到有效语音。源音频已保留，可以试听检查、重试识别或手动建立句段。" },
-  { "name": "asr_engine_failed", "value": "设备离线语音识别启动或处理失败。请确认设备支持端侧中文识别并已安装系统语音服务后重试；源音频未修改。" },
-  { "name": "asr_decode_failed", "value": "无法解码这段音频。请检查文件是否完整、包含有效音轨，或换用录制音频重试。" },
-  { "name": "asr_audio_too_long", "value": "当前离线识别一次最多处理30分钟音频。请导入较短的音频，源音频未修改。" },
-  { "name": "asr_completed", "value": "识别完成。句段范围依据真实音频停顿生成，文字和边界均需试听复核。" } ,
-  { "name": "render_failed", "value": "无法生成或保存成片。请检查音频资产与可用空间；源录音和编辑结果已保留。" },
-  { "name": "export_completed", "value": "WAV 成片已保存到你选择的位置，源录音和项目仍保留。" }
-] }
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "本地音频编辑"
+    },
+    {
+      "name": "home_title",
+      "value": "录完一整段，只重录其中一句"
+    },
+    {
+      "name": "record_full",
+      "value": "完整录制"
+    },
+    {
+      "name": "pause_recording",
+      "value": "暂停录制"
+    },
+    {
+      "name": "resume_recording",
+      "value": "继续录制"
+    },
+    {
+      "name": "finish_recording",
+      "value": "结束并保存"
+    },
+    {
+      "name": "recording_started",
+      "value": "正在录制整段音频"
+    },
+    {
+      "name": "recording_paused",
+      "value": "录制已暂停"
+    },
+    {
+      "name": "recording_resumed",
+      "value": "已继续录制"
+    },
+    {
+      "name": "recording_failed",
+      "value": "录音失败，未创建项目。请检查麦克风和可用空间后重试。"
+    },
+    {
+      "name": "import_failed",
+      "value": "导入失败，文件可能不受支持或已损坏。"
+    },
+    {
+      "name": "imported",
+      "value": "音频已导入"
+    },
+    {
+      "name": "playback_failed",
+      "value": "播放失败，未确认试听结果。"
+    },
+    {
+      "name": "audition_completed",
+      "value": "试听已完成"
+    },
+    {
+      "name": "retake_failed",
+      "value": "重录失败，源录音未被修改。"
+    },
+    {
+      "name": "retake_too_short",
+      "value": "这段重录不足 0.3 秒，已丢弃。源录音保持不变。"
+    },
+    {
+      "name": "retake_started",
+      "value": "正在重录当前句段"
+    },
+    {
+      "name": "retake_paused",
+      "value": "重录已暂停"
+    },
+    {
+      "name": "pause_retake",
+      "value": "暂停重录"
+    },
+    {
+      "name": "resume_retake",
+      "value": "继续重录"
+    },
+    {
+      "name": "finish_retake",
+      "value": "完成并保存候选"
+    },
+    {
+      "name": "microphone_denied",
+      "value": "当前运行环境没有可用的麦克风权限，无法录音。DevEco 预览器不支持真实录音；请在官方模拟器或真机中允许麦克风权限后重试。"
+    },
+    {
+      "name": "microphone_reason",
+      "value": "用于录制完整音频和局部重录"
+    },
+    {
+      "name": "import_audio",
+      "value": "导入音频"
+    },
+    {
+      "name": "optional_inputs",
+      "value": "讲稿、提纲与专业词（可选）"
+    },
+    {
+      "name": "script_placeholder",
+      "value": "讲稿、提纲或专业词"
+    },
+    {
+      "name": "projects",
+      "value": "我的项目"
+    },
+    {
+      "name": "empty_projects",
+      "value": "还没有录音项目"
+    },
+    {
+      "name": "restore",
+      "value": "重新加载项目"
+    },
+    {
+      "name": "delete_project",
+      "value": "删除项目"
+    },
+    {
+      "name": "delete_project_confirm",
+      "value": "删除后会清理源录音、修订和本地编辑记录，且无法恢复。确定删除这个项目吗？"
+    },
+    {
+      "name": "confirm_delete",
+      "value": "确认删除"
+    },
+    {
+      "name": "cancel_delete",
+      "value": "取消删除"
+    },
+    {
+      "name": "project_deleted",
+      "value": "项目和本地录音已删除"
+    },
+    {
+      "name": "project_delete_failed",
+      "value": "项目删除失败，原有录音和编辑记录仍保留。"
+    },
+    {
+      "name": "cancel",
+      "value": "取消"
+    },
+    {
+      "name": "retry",
+      "value": "重试"
+    },
+    {
+      "name": "processing",
+      "value": "正在处理"
+    },
+    {
+      "name": "capability_unavailable",
+      "value": "此功能尚未接入设备能力，未创建录音或修改项目。"
+    },
+    {
+      "name": "operation_cancelled",
+      "value": "操作已取消"
+    },
+    {
+      "name": "operation_busy",
+      "value": "请等待当前操作完成"
+    },
+    {
+      "name": "operation_failed",
+      "value": "操作失败，项目未更新，请重试。"
+    },
+    {
+      "name": "project_required",
+      "value": "请先录制或导入音频"
+    },
+    {
+      "name": "review_required",
+      "value": "请先核对识别文字与音频边界"
+    },
+    {
+      "name": "editor",
+      "value": "句段编辑"
+    },
+    {
+      "name": "select_sentence",
+      "value": "请选择要重录的句段"
+    },
+    {
+      "name": "retake",
+      "value": "重录所选句段"
+    },
+    {
+      "name": "preview",
+      "value": "全文预览"
+    },
+    {
+      "name": "export",
+      "value": "导出音频"
+    },
+    {
+      "name": "recognize",
+      "value": "识别与分句"
+    },
+    {
+      "name": "no_segments",
+      "value": "尚未生成识别句段"
+    },
+    {
+      "name": "segment_required",
+      "value": "请选择要重录的句段"
+    },
+    {
+      "name": "confirm_text",
+      "value": "已核对识别文字"
+    },
+    {
+      "name": "confirm_range",
+      "value": "已核对音频起止边界"
+    },
+    {
+      "name": "confirm_review",
+      "value": "确认此句"
+    },
+    {
+      "name": "saved",
+      "value": "修改已保存"
+    },
+    {
+      "name": "restore_failed",
+      "value": "未能读取本地项目。请检查设备存储能力是否已接入；原有文件不会被覆盖。"
+    },
+    {
+      "name": "damaged_projects",
+      "value": "部分项目的恢复记录损坏，已保留原文件。你可以继续打开其他有效项目。"
+    },
+    {
+      "name": "open_project",
+      "value": "%s · %s 秒"
+    },
+    {
+      "name": "take_number",
+      "value": "补录版本 %s"
+    },
+    {
+      "name": "save_failed",
+      "value": "未能保存，项目保留上次成功保存的状态。请检查设备存储能力或可用空间后重试。"
+    },
+    {
+      "name": "recovery_warning",
+      "value": "已保留有效项目，但恢复记录不完整。请检查可用空间，继续编辑前核对当前内容。"
+    },
+    {
+      "name": "invalid_edit",
+      "value": "无法应用修改：请检查时间是否在源音频内、起点早于终点且不与其他句段重叠。拆分点必须在句段内部，合并必须选择相邻句段。"
+    },
+    {
+      "name": "audition_required",
+      "value": "请先完整试听源音频范围，再核对声音边界。播放未接入或试听失败时不能确认。"
+    },
+    {
+      "name": "nothing_to_undo",
+      "value": "没有可撤销的修改"
+    },
+    {
+      "name": "text_only_notice",
+      "value": "修改文字只修正显示内容，不改变声音；修改声音请重录。"
+    },
+    {
+      "name": "edit_text",
+      "value": "句段文字"
+    },
+    {
+      "name": "save_text",
+      "value": "保存文字修改"
+    },
+    {
+      "name": "source_seconds",
+      "value": "时间按源音频计算，单位为秒，最多六位小数。"
+    },
+    {
+      "name": "start_seconds",
+      "value": "起点（秒）"
+    },
+    {
+      "name": "end_seconds",
+      "value": "终点（秒）"
+    },
+    {
+      "name": "range_value",
+      "value": "源范围：%s — %s 秒"
+    },
+    {
+      "name": "selected_sentence",
+      "value": "已选中此句"
+    },
+    {
+      "name": "pending_review",
+      "value": "待确认"
+    },
+    {
+      "name": "reviewed",
+      "value": "已确认"
+    },
+    {
+      "name": "using_source",
+      "value": "当前使用原音频"
+    },
+    {
+      "name": "using_take",
+      "value": "当前使用补录版本"
+    },
+    {
+      "name": "audition_source",
+      "value": "试听原音频范围"
+    },
+    {
+      "name": "take_versions",
+      "value": "兼容当前范围的补录版本"
+    },
+    {
+      "name": "audition_take",
+      "value": "试听此版本"
+    },
+    {
+      "name": "adopt_take",
+      "value": "使用此版本"
+    },
+    {
+      "name": "restore_source",
+      "value": "恢复原音频"
+    },
+    {
+      "name": "advanced_edit",
+      "value": "范围、拆分与合并"
+    },
+    {
+      "name": "range_change_notice",
+      "value": "更改范围、拆分或合并会恢复原音频，旧补录仍保留在历史中。保存后可撤销。"
+    },
+    {
+      "name": "save_range",
+      "value": "确认并保存范围"
+    },
+    {
+      "name": "split_seconds",
+      "value": "拆分点（源音频秒数）"
+    },
+    {
+      "name": "left_text",
+      "value": "拆分后前一句文字"
+    },
+    {
+      "name": "right_text",
+      "value": "拆分后后一句文字"
+    },
+    {
+      "name": "split_segment",
+      "value": "确认并拆分"
+    },
+    {
+      "name": "merge_next",
+      "value": "确认并与下一句合并"
+    },
+    {
+      "name": "manual_segment",
+      "value": "手动建立句段"
+    },
+    {
+      "name": "create_segment",
+      "value": "保存手动句段"
+    },
+    {
+      "name": "undo",
+      "value": "撤销上次修改"
+    },
+    {
+      "name": "review_title",
+      "value": "检查并确认"
+    },
+    {
+      "name": "pending_count",
+      "value": "还需确认 %s 句"
+    },
+    {
+      "name": "back_editor",
+      "value": "返回编辑"
+    },
+    {
+      "name": "operation_timeout",
+      "value": "操作超时，请重试。"
+    },
+    {
+      "name": "asr_existing_edits",
+      "value": "已有句段或重录版本。为保护编辑结果，请先撤销已有分句，或另建项目识别。"
+    },
+    {
+      "name": "asr_no_speech",
+      "value": "未识别到有效语音。源音频已保留，可以试听检查、重试识别或手动建立句段。"
+    },
+    {
+      "name": "asr_engine_failed",
+      "value": "设备离线语音识别启动或处理失败。请确认设备支持端侧中文识别并已安装系统语音服务后重试；源音频未修改。"
+    },
+    {
+      "name": "asr_decode_failed",
+      "value": "无法解码这段音频。请检查文件是否完整、包含有效音轨，或换用录制音频重试。"
+    },
+    {
+      "name": "asr_audio_too_long",
+      "value": "当前离线识别一次最多处理30分钟音频。请导入较短的音频，源音频未修改。"
+    },
+    {
+      "name": "asr_completed",
+      "value": "识别完成。句段范围依据真实音频停顿生成，文字和边界均需试听复核。"
+    },
+    {
+      "name": "render_failed",
+      "value": "无法生成或保存成片。请检查音频资产与可用空间；源录音和编辑结果已保留。"
+    },
+    {
+      "name": "export_completed",
+      "value": "WAV 成片已保存到你选择的位置，源录音和项目仍保留。"
+    },
+    {
+      "name": "back_home",
+      "value": "返回主页"
+    }
+  ]
+}
